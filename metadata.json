@@ -1,0 +1,6 @@
+{
+  "name": "Pacto por la Conectividad Significativa",
+  "description": "Plataforma minimalista de identificación, visualización de retos por región (Pacífico y Caribe) e inversión de monedas de impacto para el Pacto por la Conectividad Significativa (OIT / UE).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

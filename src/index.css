@@ -1,0 +1,491 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,600;0,700;0,800;1,400&family=Nunito+Sans:wght@400;600;700&display=swap');
+@import "tailwindcss";
+
+/* =========================================================================
+   IDTF · FACILITY — Transformación Digital · Inclusiva
+   Hoja de estilos basada en el manual de identidad gráfica
+   ========================================================================= */
+
+/* -------------------------------------------------------------------------
+   1. TOKENS DE MARCA
+   ------------------------------------------------------------------------- */
+:root {
+  /* Color base */
+  --idtf-navy: #211E3D;           /* fondo principal */
+  --idtf-navy-light: #2B2850;     /* variante para tarjetas/secciones */
+  --idtf-white: #FFFFFF;
+
+  /* Colores de marca (cada uno con propósito simbólico) */
+  --idtf-morado: #8B84C4;         /* transformación social, inclusión */
+  --idtf-morado-dark: #6E66B0;
+  --idtf-naranja: #F2A20C;        /* energía, creatividad, emprendimiento */
+  --idtf-naranja-dark: #D68A00;
+  --idtf-verde: #9BC53D;          /* territorio, sostenibilidad, esperanza */
+  --idtf-verde-dark: #7FA82F;
+
+  /* Texto */
+  --idtf-text-primary: var(--idtf-white);
+  --idtf-text-secondary: rgba(255, 255, 255, 0.72);
+  --idtf-text-muted: rgba(255, 255, 255, 0.48);
+
+  /* Tipografía */
+  --idtf-font-display: 'Poppins', system-ui, sans-serif; /* títulos bold */
+  --idtf-font-body: 'Poppins', 'Nunito Sans', system-ui, sans-serif;
+  --idtf-font-wordmark: 'Poppins', sans-serif; /* itálica ligera para "Facility" */
+
+  /* Espaciado / ritmo */
+  --idtf-space-xs: 0.5rem;
+  --idtf-space-sm: 1rem;
+  --idtf-space-md: 2rem;
+  --idtf-space-lg: 4rem;
+  --idtf-space-xl: 6rem;
+
+  /* Radios y bordes */
+  --idtf-radius-sm: 6px;
+  --idtf-radius-md: 12px;
+  --idtf-radius-pill: 999px;
+
+  /* Barra lateral de acento (morado / naranja / verde apiladas) */
+  --idtf-accent-bar-width: 8px;
+}
+
+/* -------------------------------------------------------------------------
+   2. BASE
+   ------------------------------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  background-color: var(--idtf-navy);
+  color: var(--idtf-text-primary);
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--idtf-navy);
+  color: var(--idtf-text-primary);
+  font-family: var(--idtf-font-body);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--idtf-font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 1.05;
+  margin: 0 0 var(--idtf-space-sm);
+  color: var(--idtf-text-primary);
+}
+
+h1 { font-size: clamp(2.2rem, 5vw, 4rem); }
+h2 { font-size: clamp(1.8rem, 4vw, 3rem); color: var(--idtf-morado); }
+h3 { font-size: clamp(1.3rem, 3vw, 2rem); }
+h4 { font-size: 1.125rem; letter-spacing: 0.08em; }
+
+p {
+  font-family: var(--idtf-font-body);
+  font-weight: 400;
+  color: var(--idtf-text-secondary);
+}
+
+a {
+  color: var(--idtf-naranja);
+  text-decoration: none;
+}
+a:hover { text-decoration: underline; }
+
+/* -------------------------------------------------------------------------
+   3. WORDMARK / LOGOTIPO "Facility"
+   ------------------------------------------------------------------------- */
+.idtf-wordmark {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.idtf-wordmark__eyebrow {
+  font-family: var(--idtf-font-wordmark);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.25rem;
+  color: var(--idtf-text-primary);
+}
+
+.idtf-wordmark__eyebrow::before {
+  content: "";
+  display: block;
+  width: 48px;
+  height: 3px;
+  background: var(--idtf-naranja);
+  margin-bottom: 0.5rem;
+  border-radius: var(--idtf-radius-pill);
+}
+
+.idtf-wordmark__title {
+  font-family: var(--idtf-font-display);
+  font-weight: 800;
+  font-size: 1.75rem;
+  text-transform: none;
+  line-height: 1.1;
+}
+
+/* -------------------------------------------------------------------------
+   4. ISOLOGO (icono Wi-Fi / "F" de Facility)
+   Barras horizontales descendentes: morado → naranja → verde (punto)
+   ------------------------------------------------------------------------- */
+.idtf-isologo {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.idtf-isologo__bar {
+  height: 10px;
+  border-radius: var(--idtf-radius-pill);
+}
+
+.idtf-isologo__bar--1 { width: 64px; background: var(--idtf-morado); }
+.idtf-isologo__bar--2 { width: 44px; background: var(--idtf-naranja); }
+.idtf-isologo__bar--3 {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--idtf-verde);
+}
+
+/* -------------------------------------------------------------------------
+   5. BARRA DE ACENTO LATERAL (elemento distintivo del template)
+   Tres bloques de color apilados en el borde de la pantalla
+   ------------------------------------------------------------------------- */
+.idtf-side-accent {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+}
+
+.idtf-side-accent span {
+  display: block;
+  width: var(--idtf-accent-bar-width);
+  height: 64px;
+}
+
+.idtf-side-accent span:nth-child(1) { background: var(--idtf-morado); }
+.idtf-side-accent span:nth-child(2) { background: var(--idtf-naranja); }
+.idtf-side-accent span:nth-child(3) { background: var(--idtf-verde); }
+
+/* Variante esquina superior derecha (más corta, como en portada) */
+.idtf-corner-accent {
+  position: fixed;
+  right: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+}
+.idtf-corner-accent span {
+  display: block;
+  width: 10px;
+  height: 40px;
+}
+.idtf-corner-accent span:nth-child(1) { background: var(--idtf-morado); }
+.idtf-corner-accent span:nth-child(2) { background: var(--idtf-naranja); }
+.idtf-corner-accent span:nth-child(3) { background: var(--idtf-verde); }
+
+/* -------------------------------------------------------------------------
+   6. ENCABEZADO DE SECCIÓN NUMERADO (patrón "01 / 02 / 03")
+   ------------------------------------------------------------------------- */
+.idtf-section-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--idtf-space-md);
+  margin-bottom: var(--idtf-space-lg);
+}
+
+.idtf-section-header__number {
+  font-family: var(--idtf-font-display);
+  font-weight: 800;
+  font-size: clamp(3rem, 8vw, 5.5rem);
+  line-height: 0.9;
+  color: var(--idtf-text-primary);
+  position: relative;
+}
+
+.idtf-section-header__number::after {
+  content: "";
+  display: block;
+  width: 60%;
+  height: 3px;
+  background: var(--idtf-text-primary);
+  margin-top: 0.5rem;
+}
+
+.idtf-section-header__title {
+  font-family: var(--idtf-font-display);
+  font-weight: 800;
+  font-size: clamp(1.8rem, 4.5vw, 3.5rem);
+  text-transform: uppercase;
+}
+
+.idtf-section-header__title .accent { color: var(--idtf-morado); }
+
+/* Breadcrumb pequeño tipo "03  IDENTIDAD VISUAL  COLOR" */
+.idtf-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--idtf-space-sm);
+  font-family: var(--idtf-font-display);
+  font-weight: 800;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--idtf-space-md);
+}
+
+.idtf-breadcrumb__step {
+  color: var(--idtf-text-primary);
+}
+.idtf-breadcrumb__section {
+  color: var(--idtf-morado);
+}
+.idtf-breadcrumb__current {
+  color: var(--idtf-text-primary);
+}
+
+/* -------------------------------------------------------------------------
+   7. PALETA DE COLOR — utilidades y muestra visual
+   ------------------------------------------------------------------------- */
+.idtf-swatch-group {
+  display: flex;
+  align-items: center;
+}
+
+.idtf-swatch {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  margin-left: -40px;
+}
+.idtf-swatch:first-child { margin-left: 0; }
+
+.idtf-swatch--morado  { background: var(--idtf-morado); }
+.idtf-swatch--naranja { background: var(--idtf-naranja); }
+.idtf-swatch--verde   { background: var(--idtf-verde); }
+
+.idtf-color-label {
+  font-family: var(--idtf-font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 1.5rem;
+  margin-bottom: 0.15rem;
+}
+.idtf-color-label--morado  { color: var(--idtf-morado); }
+.idtf-color-label--naranja { color: var(--idtf-naranja); }
+.idtf-color-label--verde   { color: var(--idtf-verde); }
+
+/* Clases utilitarias de color de texto/fondo */
+.text-morado  { color: var(--idtf-morado); }
+.text-naranja { color: var(--idtf-naranja); }
+.text-verde   { color: var(--idtf-verde); }
+
+.bg-morado  { background-color: var(--idtf-morado); color: var(--idtf-navy); }
+.bg-naranja { background-color: var(--idtf-naranja); color: var(--idtf-navy); }
+.bg-verde   { background-color: var(--idtf-verde); color: var(--idtf-navy); }
+
+/* -------------------------------------------------------------------------
+   8. COMPONENTES DE UI
+   ------------------------------------------------------------------------- */
+
+/* Botones */
+.idtf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.75rem;
+  border-radius: var(--idtf-radius-pill);
+  font-family: var(--idtf-font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.idtf-btn:hover { transform: translateY(-2px); opacity: 0.92; }
+.idtf-btn:active { transform: translateY(0); }
+
+.idtf-btn--primary {
+  background: var(--idtf-naranja);
+  color: var(--idtf-navy);
+}
+.idtf-btn--secondary {
+  background: transparent;
+  color: var(--idtf-white);
+  border: 2px solid var(--idtf-morado);
+}
+.idtf-btn--ghost {
+  background: transparent;
+  color: var(--idtf-verde);
+}
+
+/* Tarjetas */
+.idtf-card {
+  background: var(--idtf-navy-light);
+  border-radius: var(--idtf-radius-md);
+  padding: var(--idtf-space-md);
+  border-top: 4px solid var(--idtf-morado);
+}
+.idtf-card--naranja { border-top-color: var(--idtf-naranja); }
+.idtf-card--verde   { border-top-color: var(--idtf-verde); }
+
+.idtf-card__eyebrow {
+  font-family: var(--idtf-font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  color: var(--idtf-morado);
+  margin-bottom: var(--idtf-space-xs);
+}
+
+/* Chips / etiquetas (para las 7 categorías de sinergia, valores, etc.) */
+.idtf-chip {
+  display: inline-block;
+  padding: 0.35rem 0.9rem;
+  border-radius: var(--idtf-radius-pill);
+  font-family: var(--idtf-font-display);
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: rgba(139, 132, 196, 0.16);
+  color: var(--idtf-morado);
+  border: 1px solid var(--idtf-morado);
+  margin: 0 0.4rem 0.4rem 0;
+}
+.idtf-chip--naranja {
+  background: rgba(242, 162, 12, 0.14);
+  color: var(--idtf-naranja);
+  border-color: var(--idtf-naranja);
+}
+.idtf-chip--verde {
+  background: rgba(155, 197, 61, 0.14);
+  color: var(--idtf-verde);
+  border-color: var(--idtf-verde);
+}
+
+/* Lista de valores de marca */
+.idtf-values-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--idtf-space-sm);
+}
+.idtf-values-list li {
+  padding-left: 1.5rem;
+  position: relative;
+  color: var(--idtf-text-secondary);
+}
+.idtf-values-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.5em;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--idtf-naranja);
+}
+.idtf-values-list strong {
+  font-family: var(--idtf-font-display);
+  font-weight: 800;
+  color: var(--idtf-white);
+}
+
+/* -------------------------------------------------------------------------
+   9. LAYOUT DE PORTADA / SECCIÓN A PANTALLA COMPLETA
+   ------------------------------------------------------------------------- */
+.idtf-cover {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  padding: var(--idtf-space-xl) var(--idtf-space-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+.idtf-cover__content { max-width: 640px; }
+
+.idtf-slide {
+  min-height: 100vh;
+  padding: var(--idtf-space-lg);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.idtf-slide__body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--idtf-space-lg);
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .idtf-slide__body { grid-template-columns: 1fr; }
+  .idtf-swatch { width: 90px; height: 90px; margin-left: -24px; }
+}
+
+/* -------------------------------------------------------------------------
+   10. LOGOS DE ALIANZA (footer institucional)
+   ------------------------------------------------------------------------- */
+.idtf-partner-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--idtf-space-md);
+  padding: var(--idtf-space-md) var(--idtf-space-lg);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.idtf-partner-bar img {
+  height: 32px;
+  width: auto;
+  filter: brightness(0) invert(1);
+  opacity: 0.9;
+}
+
+.idtf-partner-bar__divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Custom subtle scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--idtf-navy);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--idtf-navy-light);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--idtf-morado);
+}
