@@ -1,0 +1,243 @@
+import React, { useState } from "react";
+import { MessageSquare, Send, X, User, Building, Clock, Heart } from "lucide-react";
+import { CommentItem, UserProfile } from "../types";
+import { Solution } from "../data/solutionsData";
+
+interface CommentModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  solution: Solution | null;
+  comments: CommentItem[];
+  userProfile: UserProfile;
+  onAddComment: (solutionId: string, text: string, authorInfo?: { name: string; org: string; email?: string }) => Promise<void>;
+  likesCount: number;
+  userLiked: boolean;
+  onToggleLike: (solutionId: string) => void;
+}
+
+export const CommentModal: React.FC<CommentModalProps> = ({
+  isOpen,
+  onClose,
+  solution,
+  comments,
+  userProfile,
+  onAddComment,
+  likesCount,
+  userLiked,
+  onToggleLike
+}) => {
+  const [newComment, setNewComment] = useState("");
+  const [authorName, setAuthorName] = useState(userProfile.name || "");
+  const [authorOrg, setAuthorOrg] = useState(userProfile.organization || "");
+  const [authorEmail, setAuthorEmail] = useState(userProfile.email || "");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  if (!isOpen || !solution) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+
+    const nameToUse = authorName.trim() || userProfile.name.trim();
+    const orgToUse = authorOrg.trim() || userProfile.organization.trim();
+
+    if (!nameToUse) {
+      setError("Por favor ingresa tu nombre para registrar el comentario.");
+      return;
+    }
+    if (!orgToUse) {
+      setError("Por favor ingresa tu organización o entidad.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setError("");
+      await onAddComment(solution.id, newComment.trim(), {
+        name: nameToUse,
+        org: orgToUse,
+        email: authorEmail.trim() || userProfile.email
+      });
+      setNewComment("");
+    } catch (err: any) {
+      setError("No se pudo registrar el comentario. Por favor intenta de nuevo.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      const d = new Date(dateString);
+      return d.toLocaleDateString("es-CO", {
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    } catch {
+      return "Reciente";
+    }
+  };
+
+  const isCaribe = solution.region === "caribe";
+  const accentColor = isCaribe ? "var(--idtf-verde)" : "var(--idtf-naranja)";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+      <div 
+        className="bg-[var(--idtf-navy)] border border-white/20 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="p-6 border-b border-white/10 flex items-start justify-between gap-4 bg-[var(--idtf-navy-light)]">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span 
+                className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-[var(--idtf-navy)]"
+                style={{ backgroundColor: accentColor }}
+              >
+                Solución {solution.number} • NODO {solution.region.toUpperCase()}
+              </span>
+              <span className="text-white/60 text-xs flex items-center gap-1">
+                <MessageSquare className="w-3.5 h-3.5" />
+                {comments.length} {comments.length === 1 ? "comentario" : "comentarios"}
+              </span>
+            </div>
+            <h3 className="text-lg sm:text-xl font-bold text-white uppercase leading-snug tracking-tight">
+              {solution.title}
+            </h3>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => onToggleLike(solution.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                userLiked
+                  ? "bg-rose-500/20 text-rose-400 border-rose-500/40"
+                  : "bg-white/5 text-white/70 border-white/10 hover:bg-white/10"
+              }`}
+              title="Votar por esta solución"
+            >
+              <Heart className={`w-4 h-4 ${userLiked ? "fill-rose-500 text-rose-500" : ""}`} />
+              <span>{likesCount}</span>
+            </button>
+
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Comments List (Scrollable) */}
+        <div className="p-6 overflow-y-auto flex-1 space-y-4 text-left">
+          {comments.length === 0 ? (
+            <div className="py-12 text-center text-white/50 space-y-2">
+              <MessageSquare className="w-8 h-8 mx-auto opacity-40" />
+              <p className="text-sm font-medium">Aún no hay comentarios sobre esta solución.</p>
+              <p className="text-xs text-white/40">Sé el primero en compartir tu retroalimentación o perspectiva territorial.</p>
+            </div>
+          ) : (
+            comments.map((c) => (
+              <div 
+                key={c.id}
+                className="p-4 rounded-xl bg-[var(--idtf-navy-light)] border border-white/10 space-y-2 hover:border-white/20 transition-colors"
+              >
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 font-bold text-white">
+                    <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px]">
+                      {c.authorName ? c.authorName.charAt(0).toUpperCase() : "A"}
+                    </div>
+                    <span>{c.authorName}</span>
+                    {c.authorOrg && (
+                      <span className="text-[10px] font-normal px-2 py-0.5 rounded-md bg-white/5 text-[var(--idtf-morado)] border border-white/10">
+                        {c.authorOrg}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-white/40 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {formatDate(c.createdAt)}
+                  </div>
+                </div>
+
+                <p className="text-sm text-white/80 leading-relaxed pl-8">
+                  {c.text}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* New Comment Form (Sticky bottom) */}
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 border-t border-white/10 bg-[var(--idtf-navy-light)]/90 space-y-3">
+          {error && (
+            <div className="p-2.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-200 text-xs">
+              {error}
+            </div>
+          )}
+
+          {/* Quick identity confirmation if not registered */}
+          {(!userProfile.name || !userProfile.organization) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+              <div>
+                <input
+                  type="text"
+                  value={authorName}
+                  onChange={(e) => setAuthorName(e.target.value)}
+                  placeholder="Tu Nombre Completo *"
+                  className="w-full bg-[var(--idtf-navy)] border border-white/20 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/40 focus:outline-none focus:border-[var(--idtf-naranja)]"
+                  required
+                />
+              </div>
+              <div>
+                <input
+                  type="text"
+                  value={authorOrg}
+                  onChange={(e) => setAuthorOrg(e.target.value)}
+                  placeholder="Tu Organización / Entidad *"
+                  className="w-full bg-[var(--idtf-navy)] border border-white/20 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/40 focus:outline-none focus:border-[var(--idtf-naranja)]"
+                  required
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="relative">
+            <textarea
+              rows={2}
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              placeholder={`Escribe tu comentario o aporte sobre la Solución ${solution.number}...`}
+              className="w-full bg-[var(--idtf-navy)] border border-white/20 rounded-xl p-3 pr-12 text-sm text-white placeholder-white/40 focus:outline-none focus:border-[var(--idtf-naranja)] resize-none"
+              required
+            />
+            <button
+              type="submit"
+              disabled={isSubmitting || !newComment.trim()}
+              className="absolute right-2.5 bottom-3.5 p-2 rounded-lg bg-[var(--idtf-naranja)] text-[var(--idtf-navy)] hover:bg-[var(--idtf-naranja-dark)] disabled:opacity-40 disabled:cursor-not-allowed transition-all font-bold"
+              title="Publicar comentario"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] text-white/50">
+            <span>
+              {userProfile.name ? (
+                <>Comentando como: <strong className="text-white">{userProfile.name}</strong> ({userProfile.organization})</>
+              ) : (
+                <>Tus comentarios se registrarán en la base de datos de la VCS</>
+              )}
+            </span>
+            <span>Los aportes son públicos para los actores del ecosistema</span>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};

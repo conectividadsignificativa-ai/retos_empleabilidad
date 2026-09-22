@@ -1,6 +1,6 @@
 {
   "name": "Pacto por la Conectividad Significativa",
-  "description": "Plataforma minimalista de identificación, visualización de retos por región (Pacífico y Caribe) e inversión de monedas de impacto para el Pacto por la Conectividad Significativa (OIT / UE).",
+  "description": "Plataforma interactiva de validación territorial de soluciones de empleabilidad TIC para el Nodo Pacífico y Nodo Caribe mediante tarjetas interactivas 3D (flip cards), registro de likes y comentarios persistentes en base de datos.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
