@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { SOLUTIONS_DATA, Solution } from "./data/solutionsData";
-import { UserProfile, CommentItem, FeedbackData } from "./types";
+import { UserProfile, CommentItem, FeedbackData, AdminAuthUser } from "./types";
 import { 
   getOrCreateUserId, 
   getStoredUserProfile, 
@@ -8,18 +8,24 @@ import {
   fetchFeedbackData, 
   toggleSolutionLike, 
   postSolutionComment, 
-  registerUserApi 
+  registerUserApi,
+  getStoredAdminUser,
+  saveStoredAdminUser
 } from "./lib/api";
 import { RegionSelector } from "./components/RegionSelector";
 import { RegionSolutionsView } from "./components/RegionSolutionsView";
 import { RegistrationModal } from "./components/RegistrationModal";
 import { CommentModal } from "./components/CommentModal";
-import { Building2, Heart, MessageSquare, Layers } from "lucide-react";
+import { AdminAuthModal } from "./components/AdminDashboard/AdminAuthModal";
+import { ExecutiveDashboard } from "./components/AdminDashboard/ExecutiveDashboard";
+import { Building2, Heart, MessageSquare, Layers, ShieldCheck, BarChart3 } from "lucide-react";
 
 export function App() {
-  const [page, setPage] = useState<"landing" | "pacifico" | "caribe">("landing");
+  const [page, setPage] = useState<"landing" | "pacifico" | "caribe" | "dashboard">("landing");
   const [userId] = useState<string>(() => getOrCreateUserId());
   const [userProfile, setUserProfile] = useState<UserProfile>(() => getStoredUserProfile());
+  const [adminUser, setAdminUser] = useState<AdminAuthUser | null>(() => getStoredAdminUser());
+  const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState(false);
   const [isRegistrationOpen, setIsRegistrationOpen] = useState(false);
   const [targetRegionAfterRegister, setTargetRegionAfterRegister] = useState<"pacifico" | "caribe" | null>(null);
   const [activeCommentSolution, setActiveCommentSolution] = useState<Solution | null>(null);
@@ -169,6 +175,20 @@ export function App() {
     comments: caribeSolutions.reduce((sum, s) => sum + ((feedback.comments[s.id] || []).length), 0)
   };
 
+  // If on executive dashboard and authenticated, render full-screen Executive Dashboard
+  if (page === "dashboard" && adminUser) {
+    return (
+      <ExecutiveDashboard
+        adminUser={adminUser}
+        onLogout={() => {
+          setAdminUser(null);
+          setPage("landing");
+        }}
+        onBackToApp={() => setPage("landing")}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[var(--idtf-navy)] text-white flex flex-col justify-between selection:bg-[var(--idtf-naranja)] selection:text-[var(--idtf-navy)]">
       
@@ -237,6 +257,24 @@ export function App() {
               <span className="md:hidden">
                 {userProfile.name ? userProfile.name.split(" ")[0] : "Identificarme"}
               </span>
+            </button>
+
+            {/* Direct access to Whitelist Executive Dashboard */}
+            <button
+              type="button"
+              onClick={() => {
+                if (adminUser) {
+                  setPage("dashboard");
+                } else {
+                  setIsAdminAuthModalOpen(true);
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--idtf-morado)]/30 hover:bg-[var(--idtf-morado)]/50 text-white font-semibold transition-all border border-[var(--idtf-morado)]/60 text-xs shadow-sm"
+              title="Acceder al Dashboard de Reportes en Tiempo Real (Protegido por Whitelist)"
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-[var(--idtf-morado)]" />
+              <span className="hidden sm:inline">Dashboard de Reportes</span>
+              <span className="sm:hidden">Reportes</span>
             </button>
           </div>
 
@@ -319,8 +357,19 @@ export function App() {
         onToggleLike={handleToggleLike}
       />
 
+      {/* Whitelist Authentication Modal */}
+      <AdminAuthModal
+        isOpen={isAdminAuthModalOpen}
+        onClose={() => setIsAdminAuthModalOpen(false)}
+        onAuthSuccess={(user) => {
+          setAdminUser(user);
+          setIsAdminAuthModalOpen(false);
+          setPage("dashboard");
+        }}
+      />
+
       {/* Institutional Footer */}
-      <footer className="border-t border-white/10 bg-[var(--idtf-navy-light)] py-6 px-4 text-center text-xs text-white/50 space-y-2">
+      <footer className="border-t border-white/10 bg-[var(--idtf-navy-light)] py-6 px-4 text-center text-xs text-white/50 space-y-3">
         <div className="flex flex-wrap items-center justify-center gap-4 text-white/70 font-semibold uppercase tracking-wider text-[11px]">
           <span>Organización Internacional del Trabajo (OIT)</span>
           <span>•</span>
@@ -333,6 +382,22 @@ export function App() {
         <p className="text-[11px] text-white/40">
           Plataforma de validación de soluciones de empleabilidad para jóvenes en el sector TIC. Sistema de registro persistente de interacciones.
         </p>
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => {
+              if (adminUser) {
+                setPage("dashboard");
+              } else {
+                setIsAdminAuthModalOpen(true);
+              }
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-white/60 hover:text-[var(--idtf-naranja)] text-[11px] font-semibold border border-white/10 transition-colors"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-[var(--idtf-morado)]" />
+            <span>Acceso Directivo a Reportes en Tiempo Real (Whitelist)</span>
+          </button>
+        </div>
       </footer>
 
     </div>

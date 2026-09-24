@@ -27,6 +27,93 @@ app.use(express.urlencoded({ extended: true }));
 // Persistent Feedback Database Storage
 const DATA_DIR = path.join(process.cwd(), "data");
 const FEEDBACK_FILE = path.join(DATA_DIR, "feedback.json");
+const WHITELIST_FILE = path.join(DATA_DIR, "whitelist.json");
+
+interface WhitelistItem {
+  email: string;
+  name?: string;
+  organization?: string;
+  role?: string;
+  addedAt: string;
+}
+
+const defaultWhitelist: WhitelistItem[] = [
+  {
+    email: "conectividadsignificativa@gmail.com",
+    name: "Dirección General VCS",
+    organization: "Ventana de Conectividad Significativa",
+    role: "Super Administrador",
+    addedAt: "2026-09-24T00:00:00.000Z"
+  },
+  {
+    email: "admin@conectividadsignificativa.co",
+    name: "Equipo Técnico y Monitoreo",
+    organization: "IDTF Facility / VCS",
+    role: "Coordinador de Métricas",
+    addedAt: "2026-09-24T00:00:00.000Z"
+  },
+  {
+    email: "directorio@oit.org",
+    name: "Delegación de Empleabilidad",
+    organization: "Organización Internacional del Trabajo (OIT)",
+    role: "Evaluador Estratégico",
+    addedAt: "2026-09-24T00:00:00.000Z"
+  },
+  {
+    email: "cooperacion@ue.europa.eu",
+    name: "Comité de Cooperación",
+    organization: "Unión Europea",
+    role: "Evaluador de Cooperación",
+    addedAt: "2026-09-24T00:00:00.000Z"
+  },
+  {
+    email: "alianzas@idtf-facility.org",
+    name: "Gerencia de Alianzas",
+    organization: "IDTF Facility",
+    role: "Analista de Políticas",
+    addedAt: "2026-09-24T00:00:00.000Z"
+  }
+];
+
+function getWhitelist(): WhitelistItem[] {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (!fs.existsSync(WHITELIST_FILE)) {
+      fs.writeFileSync(WHITELIST_FILE, JSON.stringify(defaultWhitelist, null, 2), "utf8");
+      return defaultWhitelist;
+    }
+    const raw = fs.readFileSync(WHITELIST_FILE, "utf8");
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error("Error reading whitelist file:", err);
+    return defaultWhitelist;
+  }
+}
+
+function saveWhitelist(list: WhitelistItem[]) {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(WHITELIST_FILE, JSON.stringify(list, null, 2), "utf8");
+  } catch (err) {
+    console.error("Error saving whitelist file:", err);
+  }
+}
+
+const SOLUTIONS_METADATA = [
+  { id: "pacifico-terremoto", region: "pacifico" as const, number: 1, title: "Piloto de Respuesta y Recuperación Post-Terremoto – Ventana de Conectividad Significativa", tags: ["Respuesta Post-Desastre", "Micro-nodos Co-working", "Mapeadores Digitales"] },
+  { id: "pacifico-1", region: "pacifico" as const, number: 2, title: "La Palanca Institucionalizada (Red de Micro-conexiones)", tags: ["Red de Contactos", "Cajas de Compensación", "Mentoría Directa"] },
+  { id: "pacifico-2", region: "pacifico" as const, number: 3, title: "Pasaporte de Habilidades (Modelo de Formadores de Vanguardia)", tags: ["Formadores de Vanguardia", "Sandboxes Locales", "Certificación"] },
+  { id: "pacifico-3", region: "pacifico" as const, number: 4, title: "Formación Dual Digital Híbrida (El Estándar Operativo)", tags: ["Formación Dual", "Estipendio", "Acompañamiento Psicosocial"] },
+  { id: "pacifico-4", region: "pacifico" as const, number: 5, title: "Sandbox Territorial de Inteligencia Artificial y Cloud", tags: ["Sandbox IA", "Gobernanza de Datos", "Pasantías"] },
+  { id: "caribe-1", region: "caribe" as const, number: 1, title: "El Factor de Confianza Territorial (Sello de Empleabilidad Inclusiva)", tags: ["Sello de Confianza", "Contratación sin Sesgos", "Incentivos"] },
+  { id: "caribe-2", region: "caribe" as const, number: 2, title: "Torneos de Código a Ciegas y Hackathones de Empleabilidad", tags: ["Hackathones", "Evaluación a Ciegas", "Bilingüismo"] },
+  { id: "caribe-3", region: "caribe" as const, number: 3, title: "Fábricas de Software Comunitarias y Células de Desarrollo", tags: ["Células de Desarrollo", "Proyectos Reales", "Mentores Senior"] },
+  { id: "caribe-4", region: "caribe" as const, number: 4, title: "Ruta de Certificación en Cloud y Ciberseguridad Caribe", tags: ["Cloud & Ciberseguridad", "Vouchers de Examen", "Alianzas"] }
+];
 
 interface CommentRecord {
   id: string;
@@ -287,6 +374,225 @@ app.post("/api/register-user", (req, res) => {
     res.json({ success: true, user: userRecord });
   } catch (err: any) {
     res.status(500).json({ error: "Failed to register user" });
+  }
+});
+
+// ==========================================
+// WHITELIST & REAL-TIME REPORTING ENDPOINTS
+// ==========================================
+
+// 1. Verify Whitelist Authentication
+app.post("/api/auth/verify-whitelist", (req, res) => {
+  try {
+    const { email, pin } = req.body || {};
+    const normalizedEmail = (email || "").trim().toLowerCase();
+    const cleanPin = (pin || "").trim().toUpperCase();
+
+    // Emergency quick-access PIN for demo/evaluation
+    const isMasterPin = cleanPin === "VCS2026" || cleanPin === "OIT2026";
+
+    const whitelist = getWhitelist();
+    const matchedEntry = whitelist.find((entry) => entry.email.toLowerCase() === normalizedEmail);
+
+    if (matchedEntry || (isMasterPin && normalizedEmail)) {
+      const user = {
+        email: matchedEntry ? matchedEntry.email : normalizedEmail,
+        name: matchedEntry?.name || "Evaluador Estratégico Aliado",
+        organization: matchedEntry?.organization || "Entidad Aliada Autorizada",
+        role: matchedEntry?.role || (isMasterPin ? "Auditor Directivo (PIN)" : "Evaluador de Reportes"),
+        token: "vcs_auth_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8)
+      };
+
+      return res.json({
+        authorized: true,
+        user,
+        message: "Acceso verificado exitosamente en la lista blanca."
+      });
+    }
+
+    // Not in whitelist
+    return res.status(403).json({
+      authorized: false,
+      error: `El correo "${email}" no figura en la lista blanca de aliados autorizados para consultar este dashboard. Solicita acceso a la dirección técnica.`
+    });
+  } catch (err: any) {
+    console.error("Error in verify-whitelist:", err);
+    res.status(500).json({ authorized: false, error: "Error interno al verificar la lista blanca." });
+  }
+});
+
+// 2. Real-time Aggregated Voting and Feedback Reports
+app.get("/api/admin/reports", (req, res) => {
+  try {
+    const store = getStore();
+    const allLikes = store.likes || {};
+    const allComments = store.comments || {};
+
+    let totalVotes = 0;
+    const uniqueVoterSet = new Set<string>();
+    const uniqueOrgsSet = new Set<string>();
+
+    // Count votes and voters
+    Object.keys(allLikes).forEach((solId) => {
+      const voters = allLikes[solId] || [];
+      totalVotes += voters.length;
+      voters.forEach((vid) => uniqueVoterSet.add(vid));
+    });
+
+    // Count comments and gather organizations
+    let totalComments = 0;
+    Object.keys(allComments).forEach((solId) => {
+      const commentsList = allComments[solId] || [];
+      totalComments += commentsList.length;
+      commentsList.forEach((c) => {
+        if (c.authorOrg && c.authorOrg.trim()) {
+          uniqueOrgsSet.add(c.authorOrg.trim());
+        }
+      });
+    });
+
+    // Also include registered users organizations
+    (store.users || []).forEach((u) => {
+      if (u.organization && u.organization.trim()) {
+        uniqueOrgsSet.add(u.organization.trim());
+      }
+    });
+
+    // Compute metrics for each solution
+    const metrics = SOLUTIONS_METADATA.map((sol) => {
+      const voters = allLikes[sol.id] || [];
+      const comments = allComments[sol.id] || [];
+      const votesCount = voters.length;
+      const commentsCount = comments.length;
+      const votePercentage = totalVotes > 0 ? Number(((votesCount / totalVotes) * 100).toFixed(1)) : 0;
+
+      // Unique organizations for this solution
+      const orgSet = new Set<string>();
+      comments.forEach((c) => {
+        if (c.authorOrg) orgSet.add(c.authorOrg);
+      });
+
+      return {
+        solutionId: sol.id,
+        title: sol.title,
+        region: sol.region,
+        number: sol.number,
+        votesCount,
+        commentsCount,
+        votePercentage,
+        tags: sol.tags,
+        organizations: Array.from(orgSet),
+        comments,
+        rank: 0 // will be assigned below
+      };
+    });
+
+    // Sort by votes (descending), then by comments (descending)
+    metrics.sort((a, b) => {
+      if (b.votesCount !== a.votesCount) {
+        return b.votesCount - a.votesCount;
+      }
+      return b.commentsCount - a.commentsCount;
+    });
+
+    // Assign ranking
+    metrics.forEach((item, index) => {
+      item.rank = index + 1;
+    });
+
+    const pacificoVotes = metrics
+      .filter((m) => m.region === "pacifico")
+      .reduce((sum, m) => sum + m.votesCount, 0);
+
+    const caribeVotes = metrics
+      .filter((m) => m.region === "caribe")
+      .reduce((sum, m) => sum + m.votesCount, 0);
+
+    const leadingSolution = metrics.length > 0 ? {
+      title: metrics[0].title,
+      region: metrics[0].region,
+      votes: metrics[0].votesCount
+    } : undefined;
+
+    res.json({
+      summary: {
+        totalVotes,
+        totalComments,
+        uniqueVoters: uniqueVoterSet.size,
+        uniqueOrganizations: uniqueOrgsSet.size,
+        pacificoVotes,
+        caribeVotes,
+        leadingSolution
+      },
+      metrics,
+      lastUpdated: new Date().toISOString()
+    });
+  } catch (err: any) {
+    console.error("Error generating reports:", err);
+    res.status(500).json({ error: "Error al generar reportes en tiempo real." });
+  }
+});
+
+// 3. Get Whitelist
+app.get("/api/admin/whitelist", (req, res) => {
+  try {
+    const list = getWhitelist();
+    res.json({ whitelist: list });
+  } catch (err) {
+    res.status(500).json({ error: "Error al obtener la lista blanca." });
+  }
+});
+
+// 4. Add to Whitelist
+app.post("/api/admin/whitelist", (req, res) => {
+  try {
+    const { email, name, organization, role } = req.body || {};
+    if (!email || !email.trim()) {
+      return res.status(400).json({ error: "El correo es requerido." });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const list = getWhitelist();
+
+    const existingIndex = list.findIndex((item) => item.email.toLowerCase() === cleanEmail);
+    const newEntry: WhitelistItem = {
+      email: cleanEmail,
+      name: name?.trim() || "Aliado Estratégico",
+      organization: organization?.trim() || "Organización Aliada",
+      role: role?.trim() || "Evaluador",
+      addedAt: new Date().toISOString()
+    };
+
+    if (existingIndex >= 0) {
+      list[existingIndex] = { ...list[existingIndex], ...newEntry };
+    } else {
+      list.push(newEntry);
+    }
+
+    saveWhitelist(list);
+    res.json({ success: true, entry: newEntry, whitelist: list });
+  } catch (err) {
+    res.status(500).json({ error: "Error al guardar en la lista blanca." });
+  }
+});
+
+// 5. Remove from Whitelist
+app.delete("/api/admin/whitelist/:email", (req, res) => {
+  try {
+    const emailToDelete = decodeURIComponent(req.params.email || "").trim().toLowerCase();
+    
+    // Protect primary root admin
+    if (emailToDelete === "conectividadsignificativa@gmail.com") {
+      return res.status(400).json({ error: "No se puede eliminar el administrador principal." });
+    }
+
+    let list = getWhitelist();
+    list = list.filter((item) => item.email.toLowerCase() !== emailToDelete);
+    saveWhitelist(list);
+
+    res.json({ success: true, whitelist: list });
+  } catch (err) {
+    res.status(500).json({ error: "Error al remover de la lista blanca." });
   }
 });
 

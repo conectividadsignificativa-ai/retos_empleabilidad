@@ -248,3 +248,117 @@ export async function registerUserApi(profile: UserProfile): Promise<void> {
     console.warn("Error registering user in API:", err);
   }
 }
+
+// ==========================================
+// WHITELIST & REAL-TIME DASHBOARD API
+// ==========================================
+
+const LOCAL_ADMIN_KEY = "vcs_admin_session";
+
+export function getStoredAdminUser(): { email: string; name: string; organization: string; role: string; token: string } | null {
+  try {
+    const raw = localStorage.getItem(LOCAL_ADMIN_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.error("Error reading admin session:", e);
+  }
+  return null;
+}
+
+export function saveStoredAdminUser(user: { email: string; name: string; organization: string; role: string; token: string } | null) {
+  try {
+    if (user) {
+      localStorage.setItem(LOCAL_ADMIN_KEY, JSON.stringify(user));
+    } else {
+      localStorage.removeItem(LOCAL_ADMIN_KEY);
+    }
+  } catch (e) {
+    console.error("Error saving admin session:", e);
+  }
+}
+
+export async function verifyWhitelistAuth(
+  email: string, 
+  pin?: string
+): Promise<{ authorized: boolean; user?: any; error?: string }> {
+  try {
+    const res = await fetch("/api/auth/verify-whitelist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim(), pin: pin?.trim() })
+    });
+
+    const data = await res.json();
+    if (res.ok && data.authorized) {
+      saveStoredAdminUser(data.user);
+      return { authorized: true, user: data.user };
+    }
+
+    return { 
+      authorized: false, 
+      error: data.error || "Acceso denegado. Tu correo no está en la lista blanca de aliados autorizados." 
+    };
+  } catch (err: any) {
+    console.error("Error verifying whitelist:", err);
+    return { authorized: false, error: "Error de conexión al verificar la lista blanca." };
+  }
+}
+
+export async function fetchRealtimeReports(): Promise<any> {
+  try {
+    const res = await fetch("/api/admin/reports");
+    if (res.ok) {
+      return await res.json();
+    }
+    throw new Error("No se pudo obtener el reporte del servidor");
+  } catch (err) {
+    console.error("Error fetching reports:", err);
+    throw err;
+  }
+}
+
+export async function fetchWhitelistApi(): Promise<any[]> {
+  try {
+    const res = await fetch("/api/admin/whitelist");
+    if (res.ok) {
+      const data = await res.json();
+      return data.whitelist || [];
+    }
+  } catch (err) {
+    console.error("Error fetching whitelist:", err);
+  }
+  return [];
+}
+
+export async function addWhitelistApi(entry: { email: string; name?: string; organization?: string; role?: string }): Promise<any[]> {
+  try {
+    const res = await fetch("/api/admin/whitelist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entry)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.whitelist || [];
+    }
+  } catch (err) {
+    console.error("Error adding to whitelist:", err);
+  }
+  return [];
+}
+
+export async function removeWhitelistApi(email: string): Promise<any[]> {
+  try {
+    const res = await fetch(`/api/admin/whitelist/${encodeURIComponent(email)}`, {
+      method: "DELETE"
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.whitelist || [];
+    }
+  } catch (err) {
+    console.error("Error removing from whitelist:", err);
+  }
+  return [];
+}
+
