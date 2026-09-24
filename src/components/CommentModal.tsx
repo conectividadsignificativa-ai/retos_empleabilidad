@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { MessageSquare, Send, X, User, Building, Clock, Heart } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { MessageSquare, Send, X, User, Building, Clock, Heart, CheckCircle2, AlertCircle } from "lucide-react";
 import { CommentItem, UserProfile } from "../types";
 import { Solution } from "../data/solutionsData";
 
@@ -32,6 +32,15 @@ export const CommentModal: React.FC<CommentModalProps> = ({
   const [authorEmail, setAuthorEmail] = useState(userProfile.email || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
+  useEffect(() => {
+    if (userProfile.name) setAuthorName(userProfile.name);
+    if (userProfile.organization) setAuthorOrg(userProfile.organization);
+    if (userProfile.email) setAuthorEmail(userProfile.email);
+    setError("");
+    setSuccessMsg("");
+  }, [isOpen, userProfile]);
 
   if (!isOpen || !solution) return null;
 
@@ -60,8 +69,11 @@ export const CommentModal: React.FC<CommentModalProps> = ({
         email: authorEmail.trim() || userProfile.email
       });
       setNewComment("");
+      setSuccessMsg("¡Comentario publicado exitosamente!");
+      setTimeout(() => setSuccessMsg(""), 4000);
     } catch (err: any) {
-      setError("No se pudo registrar el comentario. Por favor intenta de nuevo.");
+      console.error("Error submitting comment:", err);
+      setError("No se pudo registrar el comentario en este momento. Por favor intenta de nuevo.");
     } finally {
       setIsSubmitting(false);
     }
@@ -175,9 +187,17 @@ export const CommentModal: React.FC<CommentModalProps> = ({
 
         {/* New Comment Form (Sticky bottom) */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-5 border-t border-white/10 bg-[var(--idtf-navy-light)]/90 space-y-3">
+          {successMsg && (
+            <div className="p-2.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2 animate-fade-in">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+              <span>{successMsg}</span>
+            </div>
+          )}
+
           {error && (
-            <div className="p-2.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-200 text-xs">
-              {error}
+            <div className="p-2.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-200 text-xs flex items-center gap-2 animate-fade-in">
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+              <span>{error}</span>
             </div>
           )}
 

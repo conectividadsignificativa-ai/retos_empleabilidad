@@ -10,7 +10,19 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
+// Enable CORS and handle preflight requests
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Persistent Feedback Database Storage
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -208,13 +220,16 @@ app.post("/api/solutions/:solutionId/like", (req, res) => {
 app.post("/api/solutions/:solutionId/comment", (req, res) => {
   try {
     const { solutionId } = req.params;
-    const { authorName, authorEmail, authorOrg, text } = req.body;
+    const { authorName, authorEmail, authorOrg, text } = req.body || {};
 
     if (!solutionId || !text || !text.trim()) {
       return res.status(400).json({ error: "Solution ID and comment text are required" });
     }
 
     const store = getStore();
+    if (!store.comments) {
+      store.comments = {};
+    }
     if (!store.comments[solutionId]) {
       store.comments[solutionId] = [];
     }
@@ -223,7 +238,7 @@ app.post("/api/solutions/:solutionId/comment", (req, res) => {
       id: "c-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7),
       solutionId,
       authorName: (authorName && authorName.trim()) || "Participante",
-      authorEmail: authorEmail?.trim() || "",
+      authorEmail: (authorEmail && authorEmail.trim()) || "",
       authorOrg: (authorOrg && authorOrg.trim()) || "Organización Aliada",
       text: text.trim(),
       createdAt: new Date().toISOString()

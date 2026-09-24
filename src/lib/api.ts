@@ -3,6 +3,7 @@ import { CommentItem, FeedbackData, UserProfile } from "../types";
 const LOCAL_USER_ID_KEY = "vcs_user_id";
 const LOCAL_PROFILE_KEY = "vcs_user_profile";
 const LOCAL_FEEDBACK_KEY = "vcs_feedback_cache";
+const LOCAL_PENDING_COMMENTS_KEY = "vcs_pending_comments";
 
 export function getOrCreateUserId(): string {
   let id = localStorage.getItem(LOCAL_USER_ID_KEY);
@@ -36,14 +37,93 @@ export function saveStoredUserProfile(profile: UserProfile) {
   }
 }
 
+// Pending offline comments queue
+function getPendingComments(): CommentItem[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_PENDING_COMMENTS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [];
+}
+
+function savePendingComments(queue: CommentItem[]) {
+  try {
+    localStorage.setItem(LOCAL_PENDING_COMMENTS_KEY, JSON.stringify(queue));
+  } catch {}
+}
+
+function updateLocalCacheWithComment(solutionId: string, comment: CommentItem) {
+  try {
+    const raw = localStorage.getItem(LOCAL_FEEDBACK_KEY);
+    const data: FeedbackData = raw ? JSON.parse(raw) : { likes: {}, userLikes: {}, comments: {} };
+    if (!data.comments) data.comments = {};
+    if (!data.comments[solutionId]) data.comments[solutionId] = [];
+    
+    // Avoid duplicates
+    if (!data.comments[solutionId].some((c) => c.id === comment.id)) {
+      data.comments[solutionId].unshift(comment);
+    }
+    localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.warn("Could not update local feedback cache:", e);
+  }
+}
+
+export async function syncPendingComments(): Promise<void> {
+  const pending = getPendingComments();
+  if (pending.length === 0) return;
+
+  const remaining: CommentItem[] = [];
+  for (const item of pending) {
+    try {
+      const res = await fetch(`/api/solutions/${item.solutionId}/comment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          authorName: item.authorName,
+          authorOrg: item.authorOrg,
+          authorEmail: item.authorEmail,
+          text: item.text
+        })
+      });
+      if (!res.ok) {
+        remaining.push(item);
+      }
+    } catch {
+      remaining.push(item);
+    }
+  }
+  savePendingComments(remaining);
+}
+
 // Fetch feedback data from server
 export async function fetchFeedbackData(userId: string): Promise<FeedbackData> {
+  // Sync pending comments in background
+  syncPendingComments().catch(() => {});
+
   try {
     const res = await fetch(`/api/feedback?userId=${encodeURIComponent(userId)}`);
     if (res.ok) {
       const data = await res.json();
-      localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(data));
-      return data;
+
+      // Merge local pending comments if any exist
+      const pending = getPendingComments();
+      const mergedComments = { ...(data.comments || {}) };
+      pending.forEach((p) => {
+        if (!mergedComments[p.solutionId]) mergedComments[p.solutionId] = [];
+        if (!mergedComments[p.solutionId].some((c: CommentItem) => c.id === p.id || (c.text === p.text && c.authorName === p.authorName))) {
+          mergedComments[p.solutionId].unshift(p);
+        }
+      });
+
+      const fullData: FeedbackData = {
+        likes: data.likes || {},
+        userLikes: data.userLikes || {},
+        comments: mergedComments
+      };
+
+      localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(fullData));
+      return fullData;
     }
   } catch (err) {
     console.warn("Could not reach backend API, reading from cache:", err);
@@ -97,29 +177,63 @@ export async function toggleSolutionLike(
   };
 }
 
-// Post comment to a solution
+// Post comment to a solution with auto-retry and offline fallback
 export async function postSolutionComment(
   solutionId: string,
   text: string,
   author: { name: string; org: string; email?: string }
 ): Promise<CommentItem> {
-  const res = await fetch(`/api/solutions/${solutionId}/comment`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      authorName: author.name,
-      authorOrg: author.org,
-      authorEmail: author.email,
-      text
-    })
-  });
+  const payload = {
+    authorName: author.name.trim() || "Participante",
+    authorOrg: author.org.trim() || "Organización Aliada",
+    authorEmail: author.email?.trim() || "",
+    text: text.trim()
+  };
 
-  if (!res.ok) {
-    throw new Error("Error en servidor al guardar comentario");
+  // Attempt network POST with retry
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(`/api/solutions/${solutionId}/comment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.comment) {
+          updateLocalCacheWithComment(solutionId, data.comment);
+          return data.comment;
+        }
+      }
+    } catch (netErr) {
+      console.warn(`Attempt ${attempt + 1} to post comment failed:`, netErr);
+      if (attempt === 0) {
+        await new Promise((r) => setTimeout(r, 600));
+        continue;
+      }
+    }
   }
 
-  const data = await res.json();
-  return data.comment;
+  // Resilient fallback: Ensure comment is saved and displayed immediately
+  console.log("Saving comment to local storage fallback queue");
+  const fallbackComment: CommentItem = {
+    id: "c-local-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7),
+    solutionId,
+    authorName: payload.authorName,
+    authorOrg: payload.authorOrg,
+    authorEmail: payload.authorEmail,
+    text: payload.text,
+    createdAt: new Date().toISOString()
+  };
+
+  updateLocalCacheWithComment(solutionId, fallbackComment);
+
+  const pending = getPendingComments();
+  pending.push(fallbackComment);
+  savePendingComments(pending);
+
+  return fallbackComment;
 }
 
 // Register user in database
