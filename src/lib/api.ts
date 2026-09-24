@@ -399,3 +399,26 @@ export async function removeWhitelistApi(email: string): Promise<any[]> {
   return [];
 }
 
+export function clearLocalFeedbackCache() {
+  try {
+    localStorage.removeItem(LOCAL_FEEDBACK_KEY);
+    localStorage.removeItem(LOCAL_PENDING_COMMENTS_KEY);
+  } catch (e) {
+    console.warn("Could not clear local feedback cache:", e);
+  }
+}
+
+export async function resetFeedbackDataApi(): Promise<boolean> {
+  clearLocalFeedbackCache();
+  try {
+    const res = await fetch("/api/admin/reset-data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    });
+    return res.ok;
+  } catch (err) {
+    console.error("Error calling reset-data:", err);
+    return false;
+  }
+}
+

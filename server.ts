@@ -109,70 +109,29 @@ interface FeedbackStore {
   }>;
 }
 
-// Initial seed data to demonstrate activity if database is empty
+// Initial clean data store for production (starts completely at zero)
 const initialStore: FeedbackStore = {
   likes: {
-    "pacifico-terremoto": ["user-init-10", "user-init-11", "user-init-12", "user-init-13", "user-init-14"],
-    "pacifico-1": ["user-init-1", "user-init-2", "user-init-3", "user-init-4"],
-    "pacifico-2": ["user-init-1", "user-init-5", "user-init-6"],
-    "pacifico-3": ["user-init-2", "user-init-7"],
-    "pacifico-4": ["user-init-3", "user-init-4", "user-init-8"],
-    "caribe-1": ["user-init-2", "user-init-9", "user-init-10"],
-    "caribe-2": ["user-init-1", "user-init-11", "user-init-12", "user-init-13"],
-    "caribe-3": ["user-init-6", "user-init-7"],
-    "caribe-4": ["user-init-8", "user-init-14", "user-init-15"]
+    "pacifico-terremoto": [],
+    "pacifico-1": [],
+    "pacifico-2": [],
+    "pacifico-3": [],
+    "pacifico-4": [],
+    "caribe-1": [],
+    "caribe-2": [],
+    "caribe-3": [],
+    "caribe-4": []
   },
   comments: {
-    "pacifico-terremoto": [
-      {
-        id: "c-pac-terr-1",
-        solutionId: "pacifico-terremoto",
-        authorName: "Patricia Caicedo",
-        authorOrg: "Organización Territorial Aliada",
-        text: "La combinación de micro-nodos con incentivos condicionados y brigadas de mapeadores digitales juveniles atiende de manera urgente la reactivación tras una emergencia.",
-        createdAt: new Date(Date.now() - 3600000 * 12).toISOString()
-      }
-    ],
-    "pacifico-1": [
-      {
-        id: "c-pac-1-1",
-        solutionId: "pacifico-1",
-        authorName: "Carlos Rivas",
-        authorOrg: "Caja de Compensación Familiar Aliada",
-        text: "Es fundamental articular la red de mentores empresariales con las cajas locales y organizaciones aliadas para garantizar pasantías efectivas en el Nodo Pacífico.",
-        createdAt: new Date(Date.now() - 3600000 * 24 * 2).toISOString()
-      }
-    ],
-    "pacifico-2": [
-      {
-        id: "c-pac-2-1",
-        solutionId: "pacifico-2",
-        authorName: "María Fernanda Caicedo",
-        authorOrg: "Ecosistema Tecnológico Aliado",
-        text: "El modelo de formadores de vanguardia permite reducir la dependencia de licencias costosas y genera capacidades instaladas permanentes.",
-        createdAt: new Date(Date.now() - 3600000 * 24 * 1).toISOString()
-      }
-    ],
-    "caribe-1": [
-      {
-        id: "c-car-1-1",
-        solutionId: "caribe-1",
-        authorName: "Andrés Mendoza",
-        authorOrg: "Entidad Empresarial Aliada",
-        text: "Eliminar el sesgo de selección y facilitar palancas institucionales abrirá oportunidades reales a los jóvenes en los clústeres TIC del Nodo Caribe.",
-        createdAt: new Date(Date.now() - 3600000 * 24 * 3).toISOString()
-      }
-    ],
-    "caribe-2": [
-      {
-        id: "c-car-2-1",
-        solutionId: "caribe-2",
-        authorName: "Lucía Gómez",
-        authorOrg: "Gremio TIC Aliado",
-        text: "Los torneos de código a ciegas combinados con bilingüismo abordan dos dolores simultáneos de las empresas de desarrollo en el territorio.",
-        createdAt: new Date(Date.now() - 3600000 * 18).toISOString()
-      }
-    ]
+    "pacifico-terremoto": [],
+    "pacifico-1": [],
+    "pacifico-2": [],
+    "pacifico-3": [],
+    "pacifico-4": [],
+    "caribe-1": [],
+    "caribe-2": [],
+    "caribe-3": [],
+    "caribe-4": []
   },
   users: []
 };
@@ -565,6 +524,43 @@ app.delete("/api/admin/whitelist/:email", (req, res) => {
     res.json({ success: true, whitelist: list });
   } catch (err) {
     res.status(500).json({ error: "Error al remover de la lista blanca." });
+  }
+});
+
+// 6. Reset / Purge Feedback Data to 0 for Production Launch
+app.post("/api/admin/reset-data", (req, res) => {
+  try {
+    const cleanStore: FeedbackStore = {
+      likes: {
+        "pacifico-terremoto": [],
+        "pacifico-1": [],
+        "pacifico-2": [],
+        "pacifico-3": [],
+        "pacifico-4": [],
+        "caribe-1": [],
+        "caribe-2": [],
+        "caribe-3": [],
+        "caribe-4": []
+      },
+      comments: {
+        "pacifico-terremoto": [],
+        "pacifico-1": [],
+        "pacifico-2": [],
+        "pacifico-3": [],
+        "pacifico-4": [],
+        "caribe-1": [],
+        "caribe-2": [],
+        "caribe-3": [],
+        "caribe-4": []
+      },
+      users: []
+    };
+    saveStore(cleanStore);
+    console.log("Database successfully purged to 0 for production by administrator request.");
+    res.json({ success: true, message: "Base de datos de votaciones y comentarios restablecida a 0 exitosamente." });
+  } catch (err) {
+    console.error("Error resetting data:", err);
+    res.status(500).json({ error: "Error al restablecer los datos a cero." });
   }
 });
 

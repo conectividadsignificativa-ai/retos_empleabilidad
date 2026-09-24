@@ -18,10 +18,14 @@ import {
   ExternalLink,
   SlidersHorizontal,
   Clock,
-  Sparkles
+  Sparkles,
+  Trash2,
+  AlertTriangle,
+  CheckCircle2,
+  X
 } from "lucide-react";
 import { RealtimeReportData, SolutionReportMetric, AdminAuthUser } from "../../types";
-import { fetchRealtimeReports, saveStoredAdminUser } from "../../lib/api";
+import { fetchRealtimeReports, saveStoredAdminUser, resetFeedbackDataApi } from "../../lib/api";
 import { ProposalDetailModal } from "./ProposalDetailModal";
 import { WhitelistManagerModal } from "./WhitelistManagerModal";
 
@@ -47,6 +51,26 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
   // Modals
   const [selectedProposal, setSelectedProposal] = useState<SolutionReportMetric | null>(null);
   const [isWhitelistOpen, setIsWhitelistOpen] = useState(false);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
+
+  const handleConfirmReset = async () => {
+    setIsResetting(true);
+    try {
+      const ok = await resetFeedbackDataApi();
+      if (ok) {
+        setResetSuccessMessage("Base de datos restablecida a 0 exitosamente. Toda la plataforma está limpia y lista para votaciones oficiales.");
+        await loadReports(true);
+        setTimeout(() => setResetSuccessMessage(null), 6000);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsResetting(false);
+      setIsResetConfirmOpen(false);
+    }
+  };
 
   // Load reports function
   const loadReports = async (isManual = false) => {
@@ -274,6 +298,17 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
             >
               <ShieldCheck className="w-3.5 h-3.5 text-[var(--idtf-morado)]" />
               <span className="hidden sm:inline">Whitelist</span>
+            </button>
+
+            {/* Reset / Purge Data Button (Clean for Production) */}
+            <button
+              type="button"
+              onClick={() => setIsResetConfirmOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-200 text-xs font-semibold border border-red-500/40 transition-all"
+              title="Limpiar base de datos y reiniciar a 0 para producción"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-red-400" />
+              <span className="hidden sm:inline">Limpiar Base (0)</span>
             </button>
 
             {/* Back to public view */}
@@ -510,7 +545,7 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
                             ? "bg-gradient-to-r from-cyan-600 to-cyan-400" 
                             : "bg-gradient-to-r from-amber-600 to-amber-400"
                         }`}
-                        style={{ width: `${Math.max(4, barWidth)}%` }}
+                        style={{ width: `${item.votesCount > 0 ? Math.max(4, barWidth) : 0}%` }}
                       />
                     </div>
                   </div>
@@ -738,6 +773,83 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
           loadReports();
         }}
       />
+
+      {/* Reset Confirmation Modal */}
+      {isResetConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[var(--idtf-navy-light)] border border-red-500/40 rounded-2xl max-w-md w-full p-6 text-white shadow-2xl space-y-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">¿Reiniciar Base de Datos a 0?</h3>
+                  <p className="text-xs text-red-300 font-semibold">Plataforma en Producción</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsResetConfirmOpen(false)}
+                className="p-1 rounded-lg text-white/50 hover:text-white hover:bg-white/10"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-white/80 leading-relaxed bg-black/20 p-3.5 rounded-xl border border-white/10">
+              <p>
+                Esta acción eliminará de manera definitiva todos los votos de prueba y comentarios acumulados hasta el momento.
+              </p>
+              <ul className="list-disc pl-4 space-y-1 text-white/70">
+                <li>Los contadores de votos iniciarán en <strong>0</strong>.</li>
+                <li>Los hilos de comentarios quedarán en <strong>blanco</strong>.</li>
+                <li>La lista blanca de correos autorizados permanecerá <strong>intacta</strong>.</li>
+              </ul>
+              <p className="text-emerald-400 font-semibold pt-1">
+                Esto garantiza que las métricas y análisis oficiales comiencen sin ningún sesgo o ruido de calibración.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsResetConfirmOpen(false)}
+                disabled={isResetting}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReset}
+                disabled={isResetting}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/30 transition-all disabled:opacity-50"
+              >
+                {isResetting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Limpiando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Sí, Limpiar a 0</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Notification Toast */}
+      {resetSuccessMessage && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-950 border border-emerald-500/50 text-emerald-200 shadow-2xl animate-bounce">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span className="text-xs font-semibold">{resetSuccessMessage}</span>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="border-t border-white/10 bg-[var(--idtf-navy-light)] py-5 px-4 text-center text-xs text-white/40 print:hidden">

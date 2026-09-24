@@ -1,105 +1,25 @@
 {
   "likes": {
-    "pacifico-terremoto": [
-      "user-init-10",
-      "user-init-11",
-      "user-init-12",
-      "user-init-13"
-    ],
-    "pacifico-1": [
-      "user-init-1",
-      "user-init-2",
-      "user-init-3",
-      "user-init-4",
-      "usr_1790101424862_vymzh9c"
-    ],
-    "pacifico-2": [
-      "user-init-1",
-      "user-init-5",
-      "user-init-6",
-      "usr_1790101424862_vymzh9c"
-    ],
-    "pacifico-3": [
-      "user-init-2",
-      "user-init-7"
-    ],
-    "pacifico-4": [
-      "user-init-3",
-      "user-init-4",
-      "user-init-8"
-    ],
-    "caribe-1": [
-      "user-init-2",
-      "user-init-9",
-      "user-init-10"
-    ],
-    "caribe-2": [
-      "user-init-1",
-      "user-init-11",
-      "user-init-12",
-      "user-init-13"
-    ],
-    "caribe-3": [
-      "user-init-6",
-      "user-init-7"
-    ],
-    "caribe-4": [
-      "user-init-8",
-      "user-init-14",
-      "user-init-15"
-    ]
+    "pacifico-terremoto": [],
+    "pacifico-1": [],
+    "pacifico-2": [],
+    "pacifico-3": [],
+    "pacifico-4": [],
+    "caribe-1": [],
+    "caribe-2": [],
+    "caribe-3": [],
+    "caribe-4": []
   },
   "comments": {
-    "pacifico-terremoto": [
-      {
-        "id": "c-pac-terr-1",
-        "solutionId": "pacifico-terremoto",
-        "authorName": "Patricia Caicedo",
-        "authorOrg": "Organización Territorial Aliada",
-        "text": "La combinación de micro-nodos con incentivos condicionados y brigadas de mapeadores digitales juveniles atiende de manera urgente la reactivación tras una emergencia.",
-        "createdAt": "2026-09-22T10:00:00.000Z"
-      }
-    ],
-    "pacifico-1": [
-      {
-        "id": "c-pac-1-1",
-        "solutionId": "pacifico-1",
-        "authorName": "Carlos Rivas",
-        "authorOrg": "Caja de Compensación Familiar Aliada",
-        "text": "Es fundamental articular la red de mentores empresariales con las cajas locales y organizaciones aliadas para garantizar pasantías efectivas en el Nodo Pacífico.",
-        "createdAt": "2026-09-20T18:23:37.388Z"
-      }
-    ],
-    "pacifico-2": [
-      {
-        "id": "c-pac-2-1",
-        "solutionId": "pacifico-2",
-        "authorName": "María Fernanda Caicedo",
-        "authorOrg": "Ecosistema Tecnológico Aliado",
-        "text": "El modelo de formadores de vanguardia permite reducir la dependencia de licencias costosas y genera capacidades instaladas permanentes.",
-        "createdAt": "2026-09-21T18:23:37.388Z"
-      }
-    ],
-    "caribe-1": [
-      {
-        "id": "c-car-1-1",
-        "solutionId": "caribe-1",
-        "authorName": "Andrés Mendoza",
-        "authorOrg": "Entidad Empresarial Aliada",
-        "text": "Eliminar el sesgo de selección y facilitar palancas institucionales abrirá oportunidades reales a los jóvenes en los clústeres TIC del Nodo Caribe.",
-        "createdAt": "2026-09-19T18:23:37.388Z"
-      }
-    ],
-    "caribe-2": [
-      {
-        "id": "c-car-2-1",
-        "solutionId": "caribe-2",
-        "authorName": "Lucía Gómez",
-        "authorOrg": "Gremio TIC Aliado",
-        "text": "Los torneos de código a ciegas combinados con bilingüismo abordan dos dolores simultáneos de las empresas de desarrollo en el territorio.",
-        "createdAt": "2026-09-22T00:23:37.388Z"
-      }
-    ]
+    "pacifico-terremoto": [],
+    "pacifico-1": [],
+    "pacifico-2": [],
+    "pacifico-3": [],
+    "pacifico-4": [],
+    "caribe-1": [],
+    "caribe-2": [],
+    "caribe-3": [],
+    "caribe-4": []
   },
   "users": []
 }
