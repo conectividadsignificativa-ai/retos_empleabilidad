@@ -5,33 +5,5 @@
     "organization": "Ventana de Conectividad Significativa",
     "role": "Super Administrador",
     "addedAt": "2026-09-24T00:00:00.000Z"
-  },
-  {
-    "email": "admin@conectividadsignificativa.co",
-    "name": "Equipo Técnico y Monitoreo",
-    "organization": "IDTF Facility / VCS",
-    "role": "Coordinador de Métricas",
-    "addedAt": "2026-09-24T00:00:00.000Z"
-  },
-  {
-    "email": "directorio@oit.org",
-    "name": "Delegación de Empleabilidad",
-    "organization": "Organización Internacional del Trabajo (OIT)",
-    "role": "Evaluador Estratégico",
-    "addedAt": "2026-09-24T00:00:00.000Z"
-  },
-  {
-    "email": "cooperacion@ue.europa.eu",
-    "name": "Comité de Cooperación",
-    "organization": "Unión Europea",
-    "role": "Evaluador de Cooperación",
-    "addedAt": "2026-09-24T00:00:00.000Z"
-  },
-  {
-    "email": "alianzas@idtf-facility.org",
-    "name": "Gerencia de Alianzas",
-    "organization": "IDTF Facility",
-    "role": "Analista de Políticas",
-    "addedAt": "2026-09-24T00:00:00.000Z"
   }
 ]

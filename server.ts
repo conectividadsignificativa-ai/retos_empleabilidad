@@ -44,34 +44,6 @@ const defaultWhitelist: WhitelistItem[] = [
     organization: "Ventana de Conectividad Significativa",
     role: "Super Administrador",
     addedAt: "2026-09-24T00:00:00.000Z"
-  },
-  {
-    email: "admin@conectividadsignificativa.co",
-    name: "Equipo Técnico y Monitoreo",
-    organization: "IDTF Facility / VCS",
-    role: "Coordinador de Métricas",
-    addedAt: "2026-09-24T00:00:00.000Z"
-  },
-  {
-    email: "directorio@oit.org",
-    name: "Delegación de Empleabilidad",
-    organization: "Organización Internacional del Trabajo (OIT)",
-    role: "Evaluador Estratégico",
-    addedAt: "2026-09-24T00:00:00.000Z"
-  },
-  {
-    email: "cooperacion@ue.europa.eu",
-    name: "Comité de Cooperación",
-    organization: "Unión Europea",
-    role: "Evaluador de Cooperación",
-    addedAt: "2026-09-24T00:00:00.000Z"
-  },
-  {
-    email: "alianzas@idtf-facility.org",
-    name: "Gerencia de Alianzas",
-    organization: "IDTF Facility",
-    role: "Analista de Políticas",
-    addedAt: "2026-09-24T00:00:00.000Z"
   }
 ];
 
@@ -384,22 +356,22 @@ app.post("/api/register-user", (req, res) => {
 // 1. Verify Whitelist Authentication
 app.post("/api/auth/verify-whitelist", (req, res) => {
   try {
-    const { email, pin } = req.body || {};
+    const { email } = req.body || {};
     const normalizedEmail = (email || "").trim().toLowerCase();
-    const cleanPin = (pin || "").trim().toUpperCase();
 
-    // Emergency quick-access PIN for demo/evaluation
-    const isMasterPin = cleanPin === "VCS2026" || cleanPin === "OIT2026";
+    if (!normalizedEmail) {
+      return res.status(400).json({ authorized: false, error: "El correo es requerido." });
+    }
 
     const whitelist = getWhitelist();
     const matchedEntry = whitelist.find((entry) => entry.email.toLowerCase() === normalizedEmail);
 
-    if (matchedEntry || (isMasterPin && normalizedEmail)) {
+    if (matchedEntry) {
       const user = {
-        email: matchedEntry ? matchedEntry.email : normalizedEmail,
-        name: matchedEntry?.name || "Evaluador Estratégico Aliado",
-        organization: matchedEntry?.organization || "Entidad Aliada Autorizada",
-        role: matchedEntry?.role || (isMasterPin ? "Auditor Directivo (PIN)" : "Evaluador de Reportes"),
+        email: matchedEntry.email,
+        name: matchedEntry.name || "Evaluador Estratégico Aliado",
+        organization: matchedEntry.organization || "Entidad Aliada Autorizada",
+        role: matchedEntry.role || "Evaluador de Reportes",
         token: "vcs_auth_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8)
       };
 
@@ -413,7 +385,7 @@ app.post("/api/auth/verify-whitelist", (req, res) => {
     // Not in whitelist
     return res.status(403).json({
       authorized: false,
-      error: `El correo "${email}" no figura en la lista blanca de aliados autorizados para consultar este dashboard. Solicita acceso a la dirección técnica.`
+      error: `El correo "${email}" no figura en la lista blanca de aliados autorizados para consultar este dashboard. Solicita autorización al equipo coordinador.`
     });
   } catch (err: any) {
     console.error("Error in verify-whitelist:", err);
