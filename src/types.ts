@@ -66,6 +66,7 @@ export interface RealtimeReportData {
     };
   };
   metrics: SolutionReportMetric[];
+  recentComments?: Array<CommentItem & { solutionTitle: string; region: string; solutionNumber: number }>;
   lastUpdated: string;
 }
 

@@ -15,6 +15,12 @@ app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  // Prevent browser/proxy caching for real-time reporting API
+  if (req.path.startsWith("/api")) {
+    res.header("Cache-Control", "no-cache, no-store, must-revalidate, proxy-revalidate");
+    res.header("Pragma", "no-cache");
+    res.header("Expires", "0");
+  }
   if (req.method === "OPTIONS") {
     return res.sendStatus(200);
   }
@@ -80,11 +86,11 @@ const SOLUTIONS_METADATA = [
   { id: "pacifico-1", region: "pacifico" as const, number: 2, title: "La Palanca Institucionalizada (Red de Micro-conexiones)", tags: ["Red de Contactos", "Cajas de Compensación", "Mentoría Directa"] },
   { id: "pacifico-2", region: "pacifico" as const, number: 3, title: "Pasaporte de Habilidades (Modelo de Formadores de Vanguardia)", tags: ["Formadores de Vanguardia", "Sandboxes Locales", "Certificación"] },
   { id: "pacifico-3", region: "pacifico" as const, number: 4, title: "Formación Dual Digital Híbrida (El Estándar Operativo)", tags: ["Formación Dual", "Estipendio", "Acompañamiento Psicosocial"] },
-  { id: "pacifico-4", region: "pacifico" as const, number: 5, title: "Sandbox Territorial de Inteligencia Artificial y Cloud", tags: ["Sandbox IA", "Gobernanza de Datos", "Pasantías"] },
-  { id: "caribe-1", region: "caribe" as const, number: 1, title: "El Factor de Confianza Territorial (Sello de Empleabilidad Inclusiva)", tags: ["Sello de Confianza", "Contratación sin Sesgos", "Incentivos"] },
-  { id: "caribe-2", region: "caribe" as const, number: 2, title: "Torneos de Código a Ciegas y Hackathones de Empleabilidad", tags: ["Hackathones", "Evaluación a Ciegas", "Bilingüismo"] },
-  { id: "caribe-3", region: "caribe" as const, number: 3, title: "Fábricas de Software Comunitarias y Células de Desarrollo", tags: ["Células de Desarrollo", "Proyectos Reales", "Mentores Senior"] },
-  { id: "caribe-4", region: "caribe" as const, number: 4, title: "Ruta de Certificación en Cloud y Ciberseguridad Caribe", tags: ["Cloud & Ciberseguridad", "Vouchers de Examen", "Alianzas"] }
+  { id: "pacifico-4", region: "pacifico" as const, number: 5, title: "Laboratorios Juveniles de Innovación Abierta (Fábricas de Soluciones)", tags: ["Proyectos Capstone", "Fábrica de Soluciones", "Assessment Center", "Innovación Abierta"] },
+  { id: "caribe-1", region: "caribe" as const, number: 1, title: "Ecosistema de Intermediación Activa (La Palanca)", tags: ["Intermediación Activa", "Redes Empresariales", "Inclusión Territorial", "No Dejar a Nadie Atrás"] },
+  { id: "caribe-2", region: "caribe" as const, number: 2, title: "Sandbox Bilingüe y Pago por Resultados", tags: ["Torneos de Código a Ciegas", "Bilingüismo", "Pago por Resultados", "Validación Práctica"] },
+  { id: "caribe-3", region: "caribe" as const, number: 3, title: "Acompañamiento Integral y Retención (Protección de la Inversión)", tags: ["Contención Socioemocional", "Retención Laboral (90 días)", "Protección de Inversión", "Cultura Corporativa"] },
+  { id: "caribe-4", region: "caribe" as const, number: 4, title: "Semilleros Corporativos Inmersivos (Pacto por el Empleo)", tags: ["Pacto por el Empleo", "Clústeres Formativos", "Semilleros Inmersivos", "Superación Síndrome Impostor"] }
 ];
 
 interface CommentRecord {
@@ -445,6 +451,23 @@ app.get("/api/admin/reports", (req, res) => {
       votes: metrics[0].votesCount
     } : undefined;
 
+    // Flatten all recent comments and sort chronologically (most recent first)
+    const recentComments: Array<CommentRecord & { solutionTitle: string; region: string; solutionNumber: number }> = [];
+    Object.keys(allComments).forEach((solId) => {
+      const solMeta = SOLUTIONS_METADATA.find((s) => s.id === solId);
+      const commentsList = allComments[solId] || [];
+      commentsList.forEach((c) => {
+        recentComments.push({
+          ...c,
+          solutionTitle: solMeta ? solMeta.title : solId,
+          region: solMeta ? solMeta.region : "pacifico",
+          solutionNumber: solMeta ? solMeta.number : 1
+        });
+      });
+    });
+
+    recentComments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
     res.json({
       summary: {
         totalVotes,
@@ -456,6 +479,7 @@ app.get("/api/admin/reports", (req, res) => {
         leadingSolution
       },
       metrics,
+      recentComments,
       lastUpdated: new Date().toISOString()
     });
   } catch (err: any) {

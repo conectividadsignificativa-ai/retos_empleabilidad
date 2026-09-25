@@ -45,6 +45,7 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
 
   // Filters & Search
   const [regionFilter, setRegionFilter] = useState<"all" | "pacifico" | "caribe">("all");
+  const [commentRegionFilter, setCommentRegionFilter] = useState<"all" | "pacifico" | "caribe">("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<"votes" | "comments" | "number">("votes");
 
@@ -103,14 +104,21 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
     return () => clearInterval(timer);
   }, [lastRefreshedAt]);
 
-  // Auto-refresh interval (every 15 seconds)
+  // Auto-refresh interval (every 5 seconds for snappy real-time updates)
   useEffect(() => {
     if (!autoRefresh) return;
     const interval = setInterval(() => {
       loadReports();
-    }, 15000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [autoRefresh]);
+
+  // Filtered recent comments list across all proposals
+  const filteredRecentComments = useMemo(() => {
+    if (!reportData || !reportData.recentComments) return [];
+    if (commentRegionFilter === "all") return reportData.recentComments;
+    return reportData.recentComments.filter((c) => c.region === commentRegionFilter);
+  }, [reportData, commentRegionFilter]);
 
   // Filtered and sorted proposals list
   const filteredMetrics = useMemo(() => {
@@ -552,6 +560,126 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* Real-Time Live Comments Wall & Qualitative Feedback Feed */}
+        {reportData && (
+          <div className="p-6 rounded-2xl bg-[var(--idtf-navy-light)] border border-white/10 shadow-lg space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">
+                    Transparencia Territorial en Directo
+                  </span>
+                  <span className="text-white/30">·</span>
+                  <span className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-semibold">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <span>Feed en Vivo</span>
+                  </span>
+                </div>
+                <h2 className="text-base sm:text-lg font-bold text-white uppercase tracking-wider flex items-center gap-2 mt-0.5">
+                  <MessageSquare className="w-5 h-5 text-emerald-400" />
+                  <span>Muro de Comentarios y Aportes en Tiempo Real ({reportData.summary.totalComments})</span>
+                </h2>
+                <p className="text-xs text-white/60 mt-0.5">
+                  Todas las reflexiones, sugerencias y observaciones registradas por los participantes y aliados en el ecosistema.
+                </p>
+              </div>
+
+              {/* Filter pills for comments */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-white/50">Filtrar por nodo:</span>
+                <div className="flex items-center p-1 bg-black/40 border border-white/10 rounded-xl text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setCommentRegionFilter("all")}
+                    className={`px-3 py-1.5 rounded-lg transition-colors ${commentRegionFilter === "all" ? "bg-white/20 text-white" : "text-white/60 hover:text-white"}`}
+                  >
+                    Todos ({reportData.recentComments?.length || 0})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCommentRegionFilter("pacifico")}
+                    className={`px-3 py-1.5 rounded-lg transition-colors ${commentRegionFilter === "pacifico" ? "bg-cyan-500/30 text-cyan-300" : "text-white/60 hover:text-white"}`}
+                  >
+                    Pacífico
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCommentRegionFilter("caribe")}
+                    className={`px-3 py-1.5 rounded-lg transition-colors ${commentRegionFilter === "caribe" ? "bg-amber-500/30 text-amber-300" : "text-white/60 hover:text-white"}`}
+                  >
+                    Caribe
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Comments Grid */}
+            {filteredRecentComments.length === 0 ? (
+              <div className="py-10 text-center text-white/40 text-xs border border-dashed border-white/10 rounded-xl space-y-2">
+                <MessageSquare className="w-8 h-8 mx-auto opacity-30" />
+                <p className="font-semibold text-white/60">Aún no se registran comentarios en la base de datos.</p>
+                <p className="text-[11px] text-white/40">Tan pronto los aliados o invitados envíen aportes desde la vista de propuestas, se desplegarán aquí en vivo.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
+                {filteredRecentComments.map((c) => {
+                  const isPac = c.region === "pacifico";
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => {
+                        const matchedSol = reportData.metrics.find((m) => m.solutionId === c.solutionId);
+                        if (matchedSol) setSelectedProposal(matchedSol);
+                      }}
+                      className="p-4 rounded-xl bg-black/30 border border-white/10 hover:border-emerald-500/40 transition-all flex flex-col justify-between space-y-3 cursor-pointer group hover:bg-black/40"
+                      title="Hacer clic para ver la ficha completa de esta propuesta"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                            isPac ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30" : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                          }`}>
+                            Nodo {c.region} · Solución #{c.solutionNumber}
+                          </span>
+                          <span className="text-[10px] text-white/40">
+                            {new Date(c.createdAt).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
+                          </span>
+                        </div>
+
+                        <div className="text-xs font-bold text-white group-hover:text-[var(--idtf-naranja)] transition-colors line-clamp-1">
+                          {c.solutionTitle}
+                        </div>
+
+                        <p className="text-xs text-white/85 leading-relaxed italic bg-white/[0.03] p-2.5 rounded-lg border border-white/5 whitespace-pre-wrap">
+                          "{c.text}"
+                        </p>
+                      </div>
+
+                      <div className="pt-2 border-t border-white/5 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+                            {c.authorName ? c.authorName.charAt(0).toUpperCase() : "A"}
+                          </div>
+                          <div className="min-w-0 text-[11px]">
+                            <div className="font-semibold text-white truncate">{c.authorName || "Participante Invitado"}</div>
+                            <div className="text-[10px] text-white/50 truncate">{c.authorOrg || "Organización Aliada"}</div>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-[var(--idtf-naranja)] font-medium group-hover:underline shrink-0">
+                          Ver ficha →
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

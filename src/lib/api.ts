@@ -102,7 +102,13 @@ export async function fetchFeedbackData(userId: string): Promise<FeedbackData> {
   syncPendingComments().catch(() => {});
 
   try {
-    const res = await fetch(`/api/feedback?userId=${encodeURIComponent(userId)}`);
+    const res = await fetch(`/api/feedback?userId=${encodeURIComponent(userId)}&_t=${Date.now()}`, {
+      cache: "no-store",
+      headers: {
+        "Pragma": "no-cache",
+        "Cache-Control": "no-cache"
+      }
+    });
     if (res.ok) {
       const data = await res.json();
 
@@ -343,7 +349,13 @@ export async function verifyWhitelistAuth(
 
 export async function fetchRealtimeReports(): Promise<any> {
   try {
-    const res = await fetch("/api/admin/reports");
+    const res = await fetch(`/api/admin/reports?_t=${Date.now()}`, {
+      cache: "no-store",
+      headers: {
+        "Pragma": "no-cache",
+        "Cache-Control": "no-cache"
+      }
+    });
     if (res.ok) {
       return await res.json();
     }
