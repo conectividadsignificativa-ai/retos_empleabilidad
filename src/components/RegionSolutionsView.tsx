@@ -44,6 +44,7 @@ export const RegionSolutionsView: React.FC<RegionSolutionsViewProps> = ({
     : "Ecosistema territorial del Nodo Caribe";
 
   const userLikesInRegion = solutions.filter(s => userLikes[s.id]).length;
+  const totalCommentsInRegion = solutions.reduce((acc, s) => acc + (comments[s.id]?.length || 0), 0);
   const isIdentified = Boolean(userProfile.name && userProfile.organization);
 
   return (
@@ -71,7 +72,7 @@ export const RegionSolutionsView: React.FC<RegionSolutionsViewProps> = ({
             {isIdentified ? (
               <span><strong>{userProfile.name}</strong> ({userProfile.organization})</span>
             ) : (
-              <span className="text-[var(--idtf-naranja)] font-medium">Registrar mis datos</span>
+              <span className="text-[var(--idtf-naranja)] font-medium">Registrar mis datos (opcional)</span>
             )}
           </button>
 
@@ -88,7 +89,7 @@ export const RegionSolutionsView: React.FC<RegionSolutionsViewProps> = ({
       </div>
 
       {/* Region Header Banner */}
-      <div className="mb-10 space-y-3">
+      <div className="mb-10 space-y-4">
         <div className="flex flex-wrap items-center gap-3">
           <span 
             className="px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider text-[var(--idtf-navy)]"
@@ -110,12 +111,28 @@ export const RegionSolutionsView: React.FC<RegionSolutionsViewProps> = ({
           A continuación se presentan las <strong className="text-white">{solutions.length} Soluciones de Última Milla</strong> co-diseñadas para el territorio. <strong className="text-white">Haz clic sobre cualquier tarjeta para voltearla en 3D</strong> y consultar su esquema operativo, co-inversión y retorno de inversión (ROI).
         </p>
 
+        {/* Public comments transparency notification banner */}
+        <div className="p-3.5 px-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-wrap items-center justify-between gap-3 text-xs text-emerald-300">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>
+              <strong>Muro Abierto y Transparente:</strong> Todos los comentarios y aportes que dejes tú o cualquier aliado son <strong>visibles para todos los invitados</strong> en tiempo real.
+            </span>
+          </div>
+          <span className="text-[11px] font-bold text-white bg-emerald-500/25 border border-emerald-500/40 px-3 py-1 rounded-full shrink-0">
+            {totalCommentsInRegion} {totalCommentsInRegion === 1 ? "Comentario activo en este Nodo" : "Comentarios activos en este Nodo"}
+          </span>
+        </div>
+
         {/* Interactive instructions & mini stats */}
         <div className="flex flex-wrap items-center justify-between gap-4 p-3.5 rounded-xl bg-[var(--idtf-navy-light)] border border-white/10 text-xs">
           <div className="flex items-center gap-2 text-white/80">
             <Sparkles className="w-4 h-4 text-[var(--idtf-naranja)] shrink-0" />
             <span>
-              <strong>Tip de interacción:</strong> Puedes dar like (voto) en el corazón y hacer clic en el globo de comentarios para dejar tus aportes en la base de datos.
+              <strong>Interacción abierta:</strong> Puedes votar con el corazón y leer o dejar aportes en el muro de comentarios de cada tarjeta, incluso como invitado.
             </span>
           </div>
 
@@ -143,7 +160,7 @@ export const RegionSolutionsView: React.FC<RegionSolutionsViewProps> = ({
               solution={solution}
               likesCount={solutionLikes}
               userLiked={userLiked}
-              commentsCount={solutionComments.length}
+              comments={solutionComments}
               onToggleLike={onToggleLike}
               onOpenComments={onOpenComments}
               onRequestIdentification={onOpenProfileModal}

@@ -48,17 +48,8 @@ export const CommentModal: React.FC<CommentModalProps> = ({
     e.preventDefault();
     if (!newComment.trim()) return;
 
-    const nameToUse = authorName.trim() || userProfile.name.trim();
-    const orgToUse = authorOrg.trim() || userProfile.organization.trim();
-
-    if (!nameToUse) {
-      setError("Por favor ingresa tu nombre para registrar el comentario.");
-      return;
-    }
-    if (!orgToUse) {
-      setError("Por favor ingresa tu organización o entidad.");
-      return;
-    }
+    const nameToUse = authorName.trim() || userProfile.name.trim() || "Aliado Invitado";
+    const orgToUse = authorOrg.trim() || userProfile.organization.trim() || "Entidad Aliada";
 
     try {
       setIsSubmitting(true);
@@ -69,7 +60,7 @@ export const CommentModal: React.FC<CommentModalProps> = ({
         email: authorEmail.trim() || userProfile.email
       });
       setNewComment("");
-      setSuccessMsg("¡Comentario publicado exitosamente!");
+      setSuccessMsg("¡Aporte publicado exitosamente! Ya es visible para todos los participantes.");
       setTimeout(() => setSuccessMsg(""), 4000);
     } catch (err: any) {
       console.error("Error submitting comment:", err);
@@ -145,6 +136,22 @@ export const CommentModal: React.FC<CommentModalProps> = ({
           </div>
         </div>
 
+        {/* Real-time open transparency banner */}
+        <div className="bg-emerald-950/40 border-b border-emerald-500/30 px-5 py-2.5 flex items-center justify-between gap-3 text-xs text-emerald-300">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>
+              <strong>Muro Abierto:</strong> Todos los comentarios son visibles para cualquier participante o invitado en tiempo real.
+            </span>
+          </div>
+          <span className="text-[11px] font-semibold text-white/70 shrink-0">
+            {comments.length} {comments.length === 1 ? "aporte" : "aportes"}
+          </span>
+        </div>
+
         {/* Comments List (Scrollable) */}
         <div className="p-6 overflow-y-auto flex-1 space-y-4 text-left">
           {comments.length === 0 ? (
@@ -201,7 +208,7 @@ export const CommentModal: React.FC<CommentModalProps> = ({
             </div>
           )}
 
-          {/* Quick identity confirmation if not registered */}
+          {/* Quick identity inputs for guests or unregistered participants */}
           {(!userProfile.name || !userProfile.organization) && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               <div>
@@ -209,9 +216,8 @@ export const CommentModal: React.FC<CommentModalProps> = ({
                   type="text"
                   value={authorName}
                   onChange={(e) => setAuthorName(e.target.value)}
-                  placeholder="Tu Nombre Completo *"
+                  placeholder="Tu Nombre o Alias (opcional / ej. Aliado Territorial)"
                   className="w-full bg-[var(--idtf-navy)] border border-white/20 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/40 focus:outline-none focus:border-[var(--idtf-naranja)]"
-                  required
                 />
               </div>
               <div>
@@ -219,9 +225,8 @@ export const CommentModal: React.FC<CommentModalProps> = ({
                   type="text"
                   value={authorOrg}
                   onChange={(e) => setAuthorOrg(e.target.value)}
-                  placeholder="Tu Organización / Entidad *"
+                  placeholder="Tu Entidad / Organización (opcional / ej. Aliado)"
                   className="w-full bg-[var(--idtf-navy)] border border-white/20 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/40 focus:outline-none focus:border-[var(--idtf-naranja)]"
-                  required
                 />
               </div>
             </div>
@@ -232,7 +237,7 @@ export const CommentModal: React.FC<CommentModalProps> = ({
               rows={2}
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
-              placeholder={`Escribe tu comentario o aporte sobre la Solución ${solution.number}...`}
+              placeholder={`Escribe tu aporte o comentario público sobre la Solución ${solution.number}...`}
               className="w-full bg-[var(--idtf-navy)] border border-white/20 rounded-xl p-3 pr-12 text-sm text-white placeholder-white/40 focus:outline-none focus:border-[var(--idtf-naranja)] resize-none"
               required
             />
@@ -240,7 +245,7 @@ export const CommentModal: React.FC<CommentModalProps> = ({
               type="submit"
               disabled={isSubmitting || !newComment.trim()}
               className="absolute right-2.5 bottom-3.5 p-2 rounded-lg bg-[var(--idtf-naranja)] text-[var(--idtf-navy)] hover:bg-[var(--idtf-naranja-dark)] disabled:opacity-40 disabled:cursor-not-allowed transition-all font-bold"
-              title="Publicar comentario"
+              title="Publicar comentario abierto"
             >
               <Send className="w-4 h-4" />
             </button>
@@ -251,10 +256,10 @@ export const CommentModal: React.FC<CommentModalProps> = ({
               {userProfile.name ? (
                 <>Comentando como: <strong className="text-white">{userProfile.name}</strong> ({userProfile.organization})</>
               ) : (
-                <>Tus comentarios se registrarán en la base de datos de la VCS</>
+                <>Comentando como: <strong className="text-emerald-400">{authorName.trim() || "Aliado / Invitado"}</strong> {authorOrg.trim() ? `(${authorOrg.trim()})` : ""}</>
               )}
             </span>
-            <span>Los aportes son públicos para los actores del ecosistema</span>
+            <span className="text-emerald-400/90 font-medium">Visible para todos los invitados</span>
           </div>
         </form>
       </div>

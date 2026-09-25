@@ -36,18 +36,29 @@ export function App() {
     comments: {}
   });
 
-  // Load feedback from database on startup
+  // Load and continuously sync feedback and comments so all guests see comments in real time
   useEffect(() => {
     let isMounted = true;
-    fetchFeedbackData(userId).then((data) => {
-      if (isMounted) {
-        setFeedback(data);
-      }
-    });
+
+    const loadData = () => {
+      fetchFeedbackData(userId).then((data) => {
+        if (isMounted && data) {
+          setFeedback(data);
+        }
+      });
+    };
+
+    loadData();
+
+    // Auto-poll comments and likes every 6 seconds (or 3 seconds if comment modal is active)
+    const pollIntervalMs = activeCommentSolution ? 3000 : 6000;
+    const interval = setInterval(loadData, pollIntervalMs);
+
     return () => {
       isMounted = false;
+      clearInterval(interval);
     };
-  }, [userId]);
+  }, [userId, activeCommentSolution]);
 
   // Scroll to top when page changes
   useEffect(() => {
