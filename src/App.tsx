@@ -5,6 +5,7 @@ import {
   getOrCreateUserId, 
   getStoredUserProfile, 
   saveStoredUserProfile, 
+  getStoredFeedback,
   fetchFeedbackData, 
   toggleSolutionLike, 
   postSolutionComment, 
@@ -30,11 +31,7 @@ export function App() {
   const [targetRegionAfterRegister, setTargetRegionAfterRegister] = useState<"pacifico" | "caribe" | null>(null);
   const [activeCommentSolution, setActiveCommentSolution] = useState<Solution | null>(null);
 
-  const [feedback, setFeedback] = useState<FeedbackData>({
-    likes: {},
-    userLikes: {},
-    comments: {}
-  });
+  const [feedback, setFeedback] = useState<FeedbackData>(() => getStoredFeedback());
 
   // Load and continuously sync feedback and comments so all guests see comments in real time
   useEffect(() => {

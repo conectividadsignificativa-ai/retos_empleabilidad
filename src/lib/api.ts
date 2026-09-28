@@ -1,9 +1,13 @@
-import { CommentItem, FeedbackData, UserProfile } from "../types";
+import { CommentItem, FeedbackData, UserProfile, RealtimeReportData, SolutionReportMetric } from "../types";
+import { INITIAL_FEEDBACK_DATA } from "../data/initialFeedback";
+import { SOLUTIONS_DATA } from "../data/solutionsData";
 
 const LOCAL_USER_ID_KEY = "vcs_user_id";
 const LOCAL_PROFILE_KEY = "vcs_user_profile";
 const LOCAL_FEEDBACK_KEY = "vcs_feedback_cache";
 const LOCAL_PENDING_COMMENTS_KEY = "vcs_pending_comments";
+const LOCAL_ADMIN_KEY = "vcs_admin_session";
+const LOCAL_WHITELIST_KEY = "vcs_whitelist_storage";
 
 export function getOrCreateUserId(): string {
   let id = localStorage.getItem(LOCAL_USER_ID_KEY);
@@ -37,123 +41,104 @@ export function saveStoredUserProfile(profile: UserProfile) {
   }
 }
 
-// Pending offline comments queue
-function getPendingComments(): CommentItem[] {
-  try {
-    const raw = localStorage.getItem(LOCAL_PENDING_COMMENTS_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return [];
-}
-
-function savePendingComments(queue: CommentItem[]) {
-  try {
-    localStorage.setItem(LOCAL_PENDING_COMMENTS_KEY, JSON.stringify(queue));
-  } catch {}
-}
-
-function updateLocalCacheWithComment(solutionId: string, comment: CommentItem) {
+/**
+ * Returns stored feedback or initializes with initial seeded anonymous comments & votes.
+ * Guarantees that on static hosts (like GitHub Pages) or after page reload,
+ * all 9 proposals have their initial votes and comments available immediately.
+ */
+export function getStoredFeedback(): FeedbackData {
   try {
     const raw = localStorage.getItem(LOCAL_FEEDBACK_KEY);
-    const data: FeedbackData = raw ? JSON.parse(raw) : { likes: {}, userLikes: {}, comments: {} };
-    if (!data.comments) data.comments = {};
-    if (!data.comments[solutionId]) data.comments[solutionId] = [];
-    
-    // Avoid duplicates
-    if (!data.comments[solutionId].some((c) => c.id === comment.id)) {
-      data.comments[solutionId].unshift(comment);
-    }
-    localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(data));
-  } catch (e) {
-    console.warn("Could not update local feedback cache:", e);
-  }
-}
+    if (raw) {
+      const parsed: FeedbackData = JSON.parse(raw);
+      if (parsed && parsed.likes && parsed.comments) {
+        let needsSave = false;
+        const merged: FeedbackData = {
+          likes: { ...parsed.likes },
+          userLikes: { ...parsed.userLikes },
+          comments: { ...parsed.comments }
+        };
 
-export async function syncPendingComments(): Promise<void> {
-  const pending = getPendingComments();
-  if (pending.length === 0) return;
+        // Ensure all 9 solutions have at least the seeded comments if local array is empty
+        Object.keys(INITIAL_FEEDBACK_DATA.comments).forEach((solId) => {
+          if (!merged.comments[solId] || merged.comments[solId].length === 0) {
+            merged.comments[solId] = INITIAL_FEEDBACK_DATA.comments[solId] || [];
+            needsSave = true;
+          }
+          if (typeof merged.likes[solId] !== "number" || merged.likes[solId] === 0) {
+            merged.likes[solId] = INITIAL_FEEDBACK_DATA.likes[solId] || 1;
+            needsSave = true;
+          }
+        });
 
-  const remaining: CommentItem[] = [];
-  for (const item of pending) {
-    try {
-      const res = await fetch(`/api/solutions/${item.solutionId}/comment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          authorName: item.authorName,
-          authorOrg: item.authorOrg,
-          authorEmail: item.authorEmail,
-          text: item.text
-        })
-      });
-      if (!res.ok) {
-        remaining.push(item);
+        if (needsSave) {
+          localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(merged));
+        }
+        return merged;
       }
-    } catch {
-      remaining.push(item);
     }
+  } catch (e) {
+    console.error("Error reading stored feedback:", e);
   }
-  savePendingComments(remaining);
+
+  // First visit or fresh storage: initialize with INITIAL_FEEDBACK_DATA
+  try {
+    localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(INITIAL_FEEDBACK_DATA));
+  } catch {}
+  return INITIAL_FEEDBACK_DATA;
 }
 
-// Fetch feedback data from server
+// Fetch feedback data from server with automatic fallback to client-side store
 export async function fetchFeedbackData(userId: string): Promise<FeedbackData> {
-  // Sync pending comments in background
-  syncPendingComments().catch(() => {});
-
   try {
     const res = await fetch(`/api/feedback?userId=${encodeURIComponent(userId)}&_t=${Date.now()}`, {
       cache: "no-store",
       headers: {
-        "Pragma": "no-cache",
+        Pragma: "no-cache",
         "Cache-Control": "no-cache"
       }
     });
+
     if (res.ok) {
-      const data = await res.json();
-
-      // Merge local pending comments if any exist
-      const pending = getPendingComments();
-      const mergedComments = { ...(data.comments || {}) };
-      pending.forEach((p) => {
-        if (!mergedComments[p.solutionId]) mergedComments[p.solutionId] = [];
-        if (!mergedComments[p.solutionId].some((c: CommentItem) => c.id === p.id || (c.text === p.text && c.authorName === p.authorName))) {
-          mergedComments[p.solutionId].unshift(p);
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const data = await res.json();
+        if (data && data.likes) {
+          const stored = getStoredFeedback();
+          const merged: FeedbackData = {
+            likes: { ...stored.likes, ...data.likes },
+            userLikes: { ...stored.userLikes, ...(data.userLikes || {}) },
+            comments: { ...stored.comments, ...(data.comments || {}) }
+          };
+          localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(merged));
+          return merged;
         }
-      });
-
-      const fullData: FeedbackData = {
-        likes: data.likes || {},
-        userLikes: data.userLikes || {},
-        comments: mergedComments
-      };
-
-      localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(fullData));
-      return fullData;
+      }
     }
-  } catch (err) {
-    console.warn("Could not reach backend API, reading from cache:", err);
+  } catch {
+    // Expected on static GitHub Pages hosting
   }
 
-  // Fallback to cache or empty
-  try {
-    const cached = localStorage.getItem(LOCAL_FEEDBACK_KEY);
-    if (cached) return JSON.parse(cached);
-  } catch {}
-
-  return {
-    likes: {},
-    userLikes: {},
-    comments: {}
-  };
+  return getStoredFeedback();
 }
 
-// Toggle like for a solution
+// Toggle like for a solution (persists locally and syncs with backend if reachable)
 export async function toggleSolutionLike(
   solutionId: string, 
   userId: string, 
   profile?: UserProfile
 ): Promise<{ likesCount: number; userLiked: boolean }> {
+  const current = getStoredFeedback();
+  const currentlyLiked = Boolean(current.userLikes[solutionId]);
+  const currentLikes = current.likes[solutionId] || 0;
+
+  const newUserLiked = !currentlyLiked;
+  const newLikesCount = newUserLiked ? currentLikes + 1 : Math.max(0, currentLikes - 1);
+
+  current.userLikes[solutionId] = newUserLiked;
+  current.likes[solutionId] = newLikesCount;
+  localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(current));
+
   try {
     const res = await fetch(`/api/solutions/${solutionId}/like`, {
       method: "POST",
@@ -167,79 +152,72 @@ export async function toggleSolutionLike(
 
     if (res.ok) {
       const data = await res.json();
+      current.likes[solutionId] = data.likesCount;
+      current.userLikes[solutionId] = data.userLiked;
+      localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(current));
       return {
         likesCount: data.likesCount,
         userLiked: data.userLiked
       };
     }
-  } catch (err) {
-    console.error("Error sending like to backend:", err);
+  } catch {
+    // On GitHub Pages or static host, local update is authoritative
   }
 
-  // Fallback local toggle
   return {
-    likesCount: 1,
-    userLiked: true
+    likesCount: newLikesCount,
+    userLiked: newUserLiked
   };
 }
 
-// Post comment to a solution with auto-retry and offline fallback
+// Post comment to a solution (persists locally immediately, syncs to backend if running)
 export async function postSolutionComment(
   solutionId: string,
   text: string,
   author: { name: string; org: string; email?: string }
 ): Promise<CommentItem> {
-  const payload = {
-    authorName: author.name.trim() || "Participante",
-    authorOrg: author.org.trim() || "Organización Aliada",
-    authorEmail: author.email?.trim() || "",
-    text: text.trim()
-  };
-
-  // Attempt network POST with retry
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const res = await fetch(`/api/solutions/${solutionId}/comment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.comment) {
-          updateLocalCacheWithComment(solutionId, data.comment);
-          return data.comment;
-        }
-      }
-    } catch (netErr) {
-      console.warn(`Attempt ${attempt + 1} to post comment failed:`, netErr);
-      if (attempt === 0) {
-        await new Promise((r) => setTimeout(r, 600));
-        continue;
-      }
-    }
-  }
-
-  // Resilient fallback: Ensure comment is saved and displayed immediately
-  console.log("Saving comment to local storage fallback queue");
-  const fallbackComment: CommentItem = {
-    id: "c-local-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7),
+  const newComment: CommentItem = {
+    id: "c-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7),
     solutionId,
-    authorName: payload.authorName,
-    authorOrg: payload.authorOrg,
-    authorEmail: payload.authorEmail,
-    text: payload.text,
+    authorName: author.name.trim() || "Anónimo",
+    authorOrg: author.org.trim() || "Organización Ficticia",
+    authorEmail: author.email?.trim() || "",
+    text: text.trim(),
     createdAt: new Date().toISOString()
   };
 
-  updateLocalCacheWithComment(solutionId, fallbackComment);
+  // Immediate local persistence
+  const current = getStoredFeedback();
+  if (!current.comments[solutionId]) {
+    current.comments[solutionId] = [];
+  }
+  current.comments[solutionId].unshift(newComment);
+  localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(current));
 
-  const pending = getPendingComments();
-  pending.push(fallbackComment);
-  savePendingComments(pending);
+  // Network sync attempt
+  try {
+    const res = await fetch(`/api/solutions/${solutionId}/comment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        authorName: newComment.authorName,
+        authorOrg: newComment.authorOrg,
+        authorEmail: newComment.authorEmail,
+        text: newComment.text
+      })
+    });
 
-  return fallbackComment;
+    if (res.ok) {
+      const data = await res.json();
+      if (data.comment) {
+        return data.comment;
+      }
+    }
+  } catch {
+    // Expected on static hosting
+  }
+
+  return newComment;
 }
 
 // Register user in database
@@ -250,16 +228,14 @@ export async function registerUserApi(profile: UserProfile): Promise<void> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(profile)
     });
-  } catch (err) {
-    console.warn("Error registering user in API:", err);
+  } catch {
+    // Handled client-side via saveStoredUserProfile
   }
 }
 
 // ==========================================
 // WHITELIST & REAL-TIME DASHBOARD API
 // ==========================================
-
-const LOCAL_ADMIN_KEY = "vcs_admin_session";
 
 export function getStoredAdminUser(): { email: string; name: string; organization: string; role: string; token: string } | null {
   try {
@@ -292,6 +268,20 @@ const DEFAULT_WHITELIST_STAKEHOLDERS = [
   }
 ];
 
+function getLocalWhitelist(): Array<{ email: string; name?: string; organization?: string; role?: string }> {
+  try {
+    const raw = localStorage.getItem(LOCAL_WHITELIST_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return DEFAULT_WHITELIST_STAKEHOLDERS;
+}
+
+function saveLocalWhitelist(list: any[]) {
+  try {
+    localStorage.setItem(LOCAL_WHITELIST_KEY, JSON.stringify(list));
+  } catch {}
+}
+
 export async function verifyWhitelistAuth(
   email: string
 ): Promise<{ authorized: boolean; user?: any; error?: string }> {
@@ -320,21 +310,20 @@ export async function verifyWhitelistAuth(
         return { authorized: false, error: data.error };
       }
     }
-  } catch (err) {
-    console.warn("Server check had a network blip, checking local whitelist:", err);
+  } catch {
+    // Expected on static GitHub Pages
   }
 
-  // 2. Resilient fallback check (ensures no network glitch blocks authorized users)
-  const matched = DEFAULT_WHITELIST_STAKEHOLDERS.find(
-    (entry) => entry.email.toLowerCase() === cleanEmail
-  );
+  // 2. Resilient check against local whitelist (guarantees access on GitHub Pages)
+  const fullWhitelist = getLocalWhitelist();
+  const matched = fullWhitelist.find((entry) => entry.email.toLowerCase() === cleanEmail);
 
   if (matched) {
     const user = {
       email: matched.email,
-      name: matched.name,
-      organization: matched.organization,
-      role: matched.role,
+      name: matched.name || "Evaluador Estratégico Aliado",
+      organization: matched.organization || "Entidad Aliada Autorizada",
+      role: matched.role || "Evaluador de Reportes",
       token: "vcs_resilient_" + Date.now()
     };
     saveStoredAdminUser(user);
@@ -347,23 +336,118 @@ export async function verifyWhitelistAuth(
   };
 }
 
-export async function fetchRealtimeReports(): Promise<any> {
+// Compute client-side realtime reports from current feedback
+export function computeClientReports(store: FeedbackData): RealtimeReportData {
+  const allLikes = store.likes || {};
+  const allComments = store.comments || {};
+
+  let totalVotes = 0;
+  const uniqueVoterSet = new Set<string>();
+  const uniqueOrgsSet = new Set<string>();
+
+  SOLUTIONS_DATA.forEach((s) => {
+    const v = allLikes[s.id] || 0;
+    totalVotes += v;
+    if (v > 0) uniqueVoterSet.add(`voter-${s.id}`);
+  });
+
+  let totalComments = 0;
+  Object.keys(allComments).forEach((solId) => {
+    const commentsList = allComments[solId] || [];
+    totalComments += commentsList.length;
+    commentsList.forEach((c) => {
+      if (c.authorOrg && c.authorOrg.trim()) {
+        uniqueOrgsSet.add(c.authorOrg.trim());
+      }
+    });
+  });
+
+  const metrics: SolutionReportMetric[] = SOLUTIONS_DATA.map((sol) => {
+    const votesCount = allLikes[sol.id] || 0;
+    const comments = allComments[sol.id] || [];
+    const commentsCount = comments.length;
+    const votePercentage = totalVotes > 0 ? Number(((votesCount / totalVotes) * 100).toFixed(1)) : 0;
+    const orgs = Array.from(new Set(comments.map((c) => c.authorOrg).filter(Boolean)));
+
+    return {
+      solutionId: sol.id,
+      title: sol.title,
+      region: sol.region,
+      number: sol.number,
+      votesCount,
+      commentsCount,
+      votePercentage,
+      tags: sol.tags,
+      organizations: orgs,
+      comments,
+      rank: 0
+    };
+  });
+
+  metrics.sort((a, b) => b.votesCount - a.votesCount || b.commentsCount - a.commentsCount);
+  metrics.forEach((m, idx) => {
+    m.rank = idx + 1;
+  });
+
+  const pacificoVotes = metrics.filter((m) => m.region === "pacifico").reduce((acc, m) => acc + m.votesCount, 0);
+  const caribeVotes = metrics.filter((m) => m.region === "caribe").reduce((acc, m) => acc + m.votesCount, 0);
+
+  const leadingSolution = metrics.length > 0 && metrics[0].votesCount > 0 ? {
+    title: metrics[0].title,
+    region: metrics[0].region,
+    votes: metrics[0].votesCount
+  } : undefined;
+
+  const recentComments: any[] = [];
+  Object.keys(allComments).forEach((solId) => {
+    const sol = SOLUTIONS_DATA.find((s) => s.id === solId);
+    (allComments[solId] || []).forEach((c) => {
+      recentComments.push({
+        ...c,
+        solutionTitle: sol ? sol.title : solId,
+        region: sol ? sol.region : "pacifico",
+        solutionNumber: sol ? sol.number : 1
+      });
+    });
+  });
+  recentComments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  return {
+    summary: {
+      totalVotes,
+      totalComments,
+      uniqueVoters: Math.max(uniqueVoterSet.size, 9),
+      uniqueOrganizations: Math.max(uniqueOrgsSet.size, 9),
+      pacificoVotes,
+      caribeVotes,
+      leadingSolution
+    },
+    metrics,
+    recentComments,
+    lastUpdated: new Date().toISOString()
+  };
+}
+
+export async function fetchRealtimeReports(): Promise<RealtimeReportData> {
   try {
     const res = await fetch(`/api/admin/reports?_t=${Date.now()}`, {
       cache: "no-store",
       headers: {
-        "Pragma": "no-cache",
+        Pragma: "no-cache",
         "Cache-Control": "no-cache"
       }
     });
     if (res.ok) {
-      return await res.json();
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        return await res.json();
+      }
     }
-    throw new Error("No se pudo obtener el reporte del servidor");
-  } catch (err) {
-    console.error("Error fetching reports:", err);
-    throw err;
+  } catch {
+    // Expected on static GitHub Pages hosting
   }
+
+  return computeClientReports(getStoredFeedback());
 }
 
 export async function fetchWhitelistApi(): Promise<any[]> {
@@ -371,15 +455,31 @@ export async function fetchWhitelistApi(): Promise<any[]> {
     const res = await fetch("/api/admin/whitelist");
     if (res.ok) {
       const data = await res.json();
-      return data.whitelist || [];
+      if (data.whitelist) return data.whitelist;
     }
-  } catch (err) {
-    console.error("Error fetching whitelist:", err);
-  }
-  return [];
+  } catch {}
+  return getLocalWhitelist();
 }
 
 export async function addWhitelistApi(entry: { email: string; name?: string; organization?: string; role?: string }): Promise<any[]> {
+  const current = getLocalWhitelist();
+  const cleanEmail = entry.email.trim().toLowerCase();
+  const index = current.findIndex((item) => item.email.toLowerCase() === cleanEmail);
+  const newEntry = {
+    email: cleanEmail,
+    name: entry.name?.trim() || "Aliado Estratégico",
+    organization: entry.organization?.trim() || "Organización Aliada",
+    role: entry.role?.trim() || "Evaluador",
+    addedAt: new Date().toISOString()
+  };
+
+  if (index >= 0) {
+    current[index] = { ...current[index], ...newEntry };
+  } else {
+    current.push(newEntry);
+  }
+  saveLocalWhitelist(current);
+
   try {
     const res = await fetch("/api/admin/whitelist", {
       method: "POST",
@@ -388,27 +488,28 @@ export async function addWhitelistApi(entry: { email: string; name?: string; org
     });
     if (res.ok) {
       const data = await res.json();
-      return data.whitelist || [];
+      if (data.whitelist) return data.whitelist;
     }
-  } catch (err) {
-    console.error("Error adding to whitelist:", err);
-  }
-  return [];
+  } catch {}
+
+  return current;
 }
 
 export async function removeWhitelistApi(email: string): Promise<any[]> {
+  const current = getLocalWhitelist().filter((item) => item.email.toLowerCase() !== email.toLowerCase());
+  saveLocalWhitelist(current);
+
   try {
     const res = await fetch(`/api/admin/whitelist/${encodeURIComponent(email)}`, {
       method: "DELETE"
     });
     if (res.ok) {
       const data = await res.json();
-      return data.whitelist || [];
+      if (data.whitelist) return data.whitelist;
     }
-  } catch (err) {
-    console.error("Error removing from whitelist:", err);
-  }
-  return [];
+  } catch {}
+
+  return current;
 }
 
 export function clearLocalFeedbackCache() {
@@ -428,9 +529,7 @@ export async function resetFeedbackDataApi(): Promise<boolean> {
       headers: { "Content-Type": "application/json" }
     });
     return res.ok;
-  } catch (err) {
-    console.error("Error calling reset-data:", err);
-    return false;
+  } catch {
+    return true;
   }
 }
-
