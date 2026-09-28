@@ -292,7 +292,7 @@ export function ExecutiveDashboard({ adminUser, feedback, onLogout, onBackToApp 
       csvContent += "REPORTE EJECUTIVO DE VOTACIONES Y RETROALIMENTACIÓN - VENTANA DE CONECTIVIDAD SIGNIFICATIVA\n";
       csvContent += "PROGRAMA DE EMPLEABILIDAD TIC · IDTF / OIT / UNIÓN EUROPEA\n";
       csvContent += `Fecha y Hora de Emisión;${now.toLocaleString("es-CO")}\n`;
-      csvContent += `Evaluador / Auditor;${adminUser?.name || "Evaluador Estratégico"} (${adminUser?.organization || "OIT / IDTF"} - ${adminUser?.email || "conectividadsignificativa@gmail.com"})\n\n`;
+      csvContent += `Evaluador / Auditor;${adminUser?.name || "Administrador"} (${adminUser?.organization || "Ventana de Conectividad Significativa"} - ${adminUser?.email || "conectividadsignificativa@gmail.com"})\n\n`;
 
       // 1. Resumen General
       csvContent += "1. CONSOLIDADO GENERAL DE PARTICIPACIÓN\n";
@@ -327,8 +327,8 @@ export function ExecutiveDashboard({ adminUser, feedback, onLogout, onBackToApp 
         (m.comments || []).forEach((c) => {
           hasComments = true;
           const textEscaped = `"${(c.text || "").replace(/"/g, '""')}"`;
-          const authorEscaped = `"${(c.authorName || "Aliado Invitado").replace(/"/g, '""')}"`;
-          const orgEscaped = `"${(c.authorOrg || "Organización Aliada").replace(/"/g, '""')}"`;
+          const authorEscaped = `"${(c.authorName || "Anónimo").replace(/"/g, '""')}"`;
+          const orgEscaped = `"${(c.authorOrg || "Organización Ficticia").replace(/"/g, '""')}"`;
           const titleEscaped = `"${(m.title || "").replace(/"/g, '""')}"`;
           csvContent += `${m.solutionId || ""};${(m.region || "").toUpperCase()};${m.number || ""};${titleEscaped};${authorEscaped};${orgEscaped};${c.createdAt || ""};${textEscaped}\n`;
         });

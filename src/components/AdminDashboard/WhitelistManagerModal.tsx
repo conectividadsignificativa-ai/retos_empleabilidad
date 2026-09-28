@@ -137,7 +137,7 @@ export function WhitelistManagerModal({ isOpen, onClose }: WhitelistManagerModal
                 type="text"
                 value={newOrg}
                 onChange={(e) => setNewOrg(e.target.value)}
-                placeholder="ej. Cámara de Comercio / Gremio"
+                placeholder="ej. Organización Ficticia / Entidad Aliada"
                 className="w-full px-3 py-2 bg-black/30 border border-white/15 rounded-lg text-xs text-white placeholder-white/30 focus:outline-none focus:border-[var(--idtf-morado)]"
               />
             </div>

@@ -1,25 +1,197 @@
 {
   "likes": {
-    "pacifico-terremoto": [],
-    "pacifico-1": [],
-    "pacifico-2": [],
-    "pacifico-3": [],
-    "pacifico-4": [],
-    "caribe-1": [],
-    "caribe-2": [],
-    "caribe-3": [],
-    "caribe-4": []
+    "pacifico-terremoto": [
+      "anonimo1@ficticio.org"
+    ],
+    "pacifico-1": [
+      "anonimo2@ficticio.org"
+    ],
+    "pacifico-2": [
+      "anonimo3@ficticio.org"
+    ],
+    "pacifico-3": [
+      "anonimo4@ficticio.org"
+    ],
+    "pacifico-4": [
+      "anonimo5@ficticio.org"
+    ],
+    "caribe-1": [
+      "anonimo6@ficticio.org"
+    ],
+    "caribe-2": [
+      "anonimo7@ficticio.org"
+    ],
+    "caribe-3": [
+      "anonimo8@ficticio.org"
+    ],
+    "caribe-4": [
+      "anonimo9@ficticio.org"
+    ]
   },
   "comments": {
-    "pacifico-terremoto": [],
-    "pacifico-1": [],
-    "pacifico-2": [],
-    "pacifico-3": [],
-    "pacifico-4": [],
-    "caribe-1": [],
-    "caribe-2": [],
-    "caribe-3": [],
-    "caribe-4": []
+    "pacifico-terremoto": [
+      {
+        "id": "c-1790617001862-pzu2g",
+        "solutionId": "pacifico-terremoto",
+        "authorName": "Anónimo 1",
+        "authorEmail": "anonimo1@ficticio.org",
+        "authorOrg": "Organización Ficticia 1",
+        "text": "Excelente iniciativa para resiliencia territorial y respuesta post-desastre con micro-nodos y mapeadores digitales juveniles.",
+        "createdAt": "2026-09-28T17:36:41.862Z"
+      }
+    ],
+    "pacifico-1": [
+      {
+        "id": "c-1790617001875-zusp6",
+        "solutionId": "pacifico-1",
+        "authorName": "Anónimo 2",
+        "authorEmail": "anonimo2@ficticio.org",
+        "authorOrg": "Organización Ficticia 2",
+        "text": "La red de micro-conexiones formaliza el relacionamiento que hoy falta para los jóvenes de la región, facilitando el acceso a vacantes sin sesgos de reclutamiento.",
+        "createdAt": "2026-09-28T17:36:41.875Z"
+      }
+    ],
+    "pacifico-2": [
+      {
+        "id": "c-1790617001894-vw2z4",
+        "solutionId": "pacifico-2",
+        "authorName": "Anónimo 3",
+        "authorEmail": "anonimo3@ficticio.org",
+        "authorOrg": "Organización Ficticia 3",
+        "text": "El modelo de formadores de vanguardia reduce la brecha de certificación y genera capacidad instalada técnica directamente en el territorio.",
+        "createdAt": "2026-09-28T17:36:41.894Z"
+      }
+    ],
+    "pacifico-3": [
+      {
+        "id": "c-1790617001905-irgd1",
+        "solutionId": "pacifico-3",
+        "authorName": "Anónimo 4",
+        "authorEmail": "anonimo4@ficticio.org",
+        "authorOrg": "Organización Ficticia 4",
+        "text": "La formación dual garantiza inserción laboral directa con sostenimiento empresarial y acompañamiento socioemocional pertinente.",
+        "createdAt": "2026-09-28T17:36:41.905Z"
+      }
+    ],
+    "pacifico-4": [
+      {
+        "id": "c-1790617001914-854h5",
+        "solutionId": "pacifico-4",
+        "authorName": "Anónimo 5",
+        "authorEmail": "anonimo5@ficticio.org",
+        "authorOrg": "Organización Ficticia 5",
+        "text": "Los retos capstone con metodología de assessment center permiten a las empresas medir competencias blandas y técnicas en condiciones reales de trabajo.",
+        "createdAt": "2026-09-28T17:36:41.914Z"
+      }
+    ],
+    "caribe-1": [
+      {
+        "id": "c-1790617001921-cblm7",
+        "solutionId": "caribe-1",
+        "authorName": "Anónimo 6",
+        "authorEmail": "anonimo6@ficticio.org",
+        "authorOrg": "Organización Ficticia 6",
+        "text": "La intermediación activa con enfoque territorial es fundamental para conectar vacantes de la industria con el talento de barrios periféricos.",
+        "createdAt": "2026-09-28T17:36:41.921Z"
+      }
+    ],
+    "caribe-2": [
+      {
+        "id": "c-1790617001930-qt5ud",
+        "solutionId": "caribe-2",
+        "authorName": "Anónimo 7",
+        "authorEmail": "anonimo7@ficticio.org",
+        "authorOrg": "Organización Ficticia 7",
+        "text": "Los torneos de código a ciegas y el modelo de pago por resultados aseguran validación práctica objetiva y derriban barreras de bilingüismo técnico.",
+        "createdAt": "2026-09-28T17:36:41.930Z"
+      }
+    ],
+    "caribe-3": [
+      {
+        "id": "c-1790617001941-c1t42",
+        "solutionId": "caribe-3",
+        "authorName": "Anónimo 8",
+        "authorEmail": "anonimo8@ficticio.org",
+        "authorOrg": "Organización Ficticia 8",
+        "text": "La contención socioemocional durante los primeros 90 días protege la inversión de las empresas y minimiza la deserción temprana.",
+        "createdAt": "2026-09-28T17:36:41.941Z"
+      }
+    ],
+    "caribe-4": [
+      {
+        "id": "c-1790617001951-01cpk",
+        "solutionId": "caribe-4",
+        "authorName": "Anónimo 9",
+        "authorEmail": "anonimo9@ficticio.org",
+        "authorOrg": "Organización Ficticia 9",
+        "text": "Los semilleros inmersivos y el pacto por el empleo rompen el síndrome del impostor y consolidan clústeres formativos de alta retención.",
+        "createdAt": "2026-09-28T17:36:41.951Z"
+      }
+    ]
   },
-  "users": []
+  "users": [
+    {
+      "name": "Anónimo 1",
+      "email": "anonimo1@ficticio.org",
+      "organization": "Organización Ficticia 1",
+      "role": "Evaluador Técnico 1",
+      "registeredAt": "2026-09-28T17:36:41.851Z"
+    },
+    {
+      "name": "Anónimo 2",
+      "email": "anonimo2@ficticio.org",
+      "organization": "Organización Ficticia 2",
+      "role": "Evaluador Técnico 2",
+      "registeredAt": "2026-09-28T17:36:41.866Z"
+    },
+    {
+      "name": "Anónimo 3",
+      "email": "anonimo3@ficticio.org",
+      "organization": "Organización Ficticia 3",
+      "role": "Evaluador Técnico 3",
+      "registeredAt": "2026-09-28T17:36:41.879Z"
+    },
+    {
+      "name": "Anónimo 4",
+      "email": "anonimo4@ficticio.org",
+      "organization": "Organización Ficticia 4",
+      "role": "Evaluador Técnico 4",
+      "registeredAt": "2026-09-28T17:36:41.898Z"
+    },
+    {
+      "name": "Anónimo 5",
+      "email": "anonimo5@ficticio.org",
+      "organization": "Organización Ficticia 5",
+      "role": "Evaluador Técnico 5",
+      "registeredAt": "2026-09-28T17:36:41.909Z"
+    },
+    {
+      "name": "Anónimo 6",
+      "email": "anonimo6@ficticio.org",
+      "organization": "Organización Ficticia 6",
+      "role": "Evaluador Técnico 6",
+      "registeredAt": "2026-09-28T17:36:41.916Z"
+    },
+    {
+      "name": "Anónimo 7",
+      "email": "anonimo7@ficticio.org",
+      "organization": "Organización Ficticia 7",
+      "role": "Evaluador Técnico 7",
+      "registeredAt": "2026-09-28T17:36:41.925Z"
+    },
+    {
+      "name": "Anónimo 8",
+      "email": "anonimo8@ficticio.org",
+      "organization": "Organización Ficticia 8",
+      "role": "Evaluador Técnico 8",
+      "registeredAt": "2026-09-28T17:36:41.934Z"
+    },
+    {
+      "name": "Anónimo 9",
+      "email": "anonimo9@ficticio.org",
+      "organization": "Organización Ficticia 9",
+      "role": "Evaluador Técnico 9",
+      "registeredAt": "2026-09-28T17:36:41.945Z"
+    }
+  ]
 }

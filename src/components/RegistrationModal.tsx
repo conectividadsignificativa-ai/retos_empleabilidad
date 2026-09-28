@@ -106,7 +106,7 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ej. María Camila Suárez"
+              placeholder="Ej. Anónimo 1 / Nombre"
               className="w-full bg-[var(--idtf-navy-light)] border border-white/20 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/40 focus:outline-none focus:border-[var(--idtf-naranja)] transition-colors"
               required
             />
@@ -121,7 +121,7 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Ej. camila@empresa.com"
+              placeholder="Ej. anonimo@correo.com"
               className="w-full bg-[var(--idtf-navy-light)] border border-white/20 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/40 focus:outline-none focus:border-[var(--idtf-morado)] transition-colors"
               required
             />
@@ -136,7 +136,7 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
               type="text"
               value={organization}
               onChange={(e) => setOrganization(e.target.value)}
-              placeholder="Ej. Cámara de Comercio / Empresa TIC / Universidad"
+              placeholder="Ej. Organización Ficticia 1 / Entidad Aliada"
               className="w-full bg-[var(--idtf-navy-light)] border border-white/20 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/40 focus:outline-none focus:border-[var(--idtf-verde)] transition-colors"
               required
             />

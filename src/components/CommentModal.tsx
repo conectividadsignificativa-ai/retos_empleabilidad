@@ -48,8 +48,8 @@ export const CommentModal: React.FC<CommentModalProps> = ({
     e.preventDefault();
     if (!newComment.trim()) return;
 
-    const nameToUse = authorName.trim() || userProfile.name.trim() || "Aliado Invitado";
-    const orgToUse = authorOrg.trim() || userProfile.organization.trim() || "Entidad Aliada";
+    const nameToUse = authorName.trim() || userProfile.name.trim() || "Anónimo";
+    const orgToUse = authorOrg.trim() || userProfile.organization.trim() || "Organización Ficticia";
 
     try {
       setIsSubmitting(true);
@@ -216,7 +216,7 @@ export const CommentModal: React.FC<CommentModalProps> = ({
                   type="text"
                   value={authorName}
                   onChange={(e) => setAuthorName(e.target.value)}
-                  placeholder="Tu Nombre o Alias (opcional / ej. Aliado Territorial)"
+                  placeholder="Tu Nombre o Alias (ej. Anónimo)"
                   className="w-full bg-[var(--idtf-navy)] border border-white/20 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/40 focus:outline-none focus:border-[var(--idtf-naranja)]"
                 />
               </div>
@@ -225,7 +225,7 @@ export const CommentModal: React.FC<CommentModalProps> = ({
                   type="text"
                   value={authorOrg}
                   onChange={(e) => setAuthorOrg(e.target.value)}
-                  placeholder="Tu Entidad / Organización (opcional / ej. Aliado)"
+                  placeholder="Tu Entidad (ej. Organización Ficticia)"
                   className="w-full bg-[var(--idtf-navy)] border border-white/20 rounded-lg px-3 py-1.5 text-xs text-white placeholder-white/40 focus:outline-none focus:border-[var(--idtf-naranja)]"
                 />
               </div>

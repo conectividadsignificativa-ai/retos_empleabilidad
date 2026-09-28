@@ -521,8 +521,8 @@ function generateReportsCSV(store: FeedbackStore): string {
     (m.comments || []).forEach((c) => {
       hasComments = true;
       const textEscaped = `"${(c.text || "").replace(/"/g, '""')}"`;
-      const authorEscaped = `"${(c.authorName || "Aliado Invitado").replace(/"/g, '""')}"`;
-      const orgEscaped = `"${(c.authorOrg || "Organización Aliada").replace(/"/g, '""')}"`;
+      const authorEscaped = `"${(c.authorName || "Anónimo").replace(/"/g, '""')}"`;
+      const orgEscaped = `"${(c.authorOrg || "Organización Ficticia").replace(/"/g, '""')}"`;
       const titleEscaped = `"${(m.title || "").replace(/"/g, '""')}"`;
       csv += `${m.solutionId};${m.region.toUpperCase()};${m.number};${titleEscaped};${authorEscaped};${orgEscaped};${c.createdAt || ""};${textEscaped}\n`;
     });
