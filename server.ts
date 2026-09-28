@@ -358,133 +358,228 @@ app.post("/api/auth/verify-whitelist", (req, res) => {
   }
 });
 
-// 2. Real-time Aggregated Voting and Feedback Reports
+// Helper to compute reports data for JSON and CSV exports
+function computeReports(store: FeedbackStore) {
+  const allLikes = store.likes || {};
+  const allComments = store.comments || {};
+
+  let totalVotes = 0;
+  const uniqueVoterSet = new Set<string>();
+  const uniqueOrgsSet = new Set<string>();
+
+  // Count votes and voters
+  Object.keys(allLikes).forEach((solId) => {
+    const voters = allLikes[solId] || [];
+    totalVotes += voters.length;
+    voters.forEach((vid) => uniqueVoterSet.add(vid));
+  });
+
+  // Count comments and gather organizations
+  let totalComments = 0;
+  Object.keys(allComments).forEach((solId) => {
+    const commentsList = allComments[solId] || [];
+    totalComments += commentsList.length;
+    commentsList.forEach((c) => {
+      if (c.authorOrg && c.authorOrg.trim()) {
+        uniqueOrgsSet.add(c.authorOrg.trim());
+      }
+    });
+  });
+
+  // Also include registered users organizations
+  (store.users || []).forEach((u) => {
+    if (u.organization && u.organization.trim()) {
+      uniqueOrgsSet.add(u.organization.trim());
+    }
+  });
+
+  // Compute metrics for each solution
+  const metrics = SOLUTIONS_METADATA.map((sol) => {
+    const voters = allLikes[sol.id] || [];
+    const comments = allComments[sol.id] || [];
+    const votesCount = voters.length;
+    const commentsCount = comments.length;
+    const votePercentage = totalVotes > 0 ? Number(((votesCount / totalVotes) * 100).toFixed(1)) : 0;
+
+    // Unique organizations for this solution
+    const orgSet = new Set<string>();
+    comments.forEach((c) => {
+      if (c.authorOrg) orgSet.add(c.authorOrg);
+    });
+
+    return {
+      solutionId: sol.id,
+      title: sol.title,
+      region: sol.region,
+      number: sol.number,
+      votesCount,
+      commentsCount,
+      votePercentage,
+      tags: sol.tags,
+      organizations: Array.from(orgSet),
+      comments,
+      voters,
+      rank: 0
+    };
+  });
+
+  // Sort by votes (descending), then by comments (descending)
+  metrics.sort((a, b) => {
+    if (b.votesCount !== a.votesCount) {
+      return b.votesCount - a.votesCount;
+    }
+    return b.commentsCount - a.commentsCount;
+  });
+
+  // Assign ranking
+  metrics.forEach((item, index) => {
+    item.rank = index + 1;
+  });
+
+  const pacificoVotes = metrics
+    .filter((m) => m.region === "pacifico")
+    .reduce((sum, m) => sum + m.votesCount, 0);
+
+  const caribeVotes = metrics
+    .filter((m) => m.region === "caribe")
+    .reduce((sum, m) => sum + m.votesCount, 0);
+
+  const leadingSolution = metrics.length > 0 && metrics[0].votesCount > 0 ? {
+    title: metrics[0].title,
+    region: metrics[0].region,
+    votes: metrics[0].votesCount
+  } : undefined;
+
+  // Flatten all recent comments and sort chronologically (most recent first)
+  const recentComments: Array<CommentRecord & { solutionTitle: string; region: string; solutionNumber: number }> = [];
+  Object.keys(allComments).forEach((solId) => {
+    const solMeta = SOLUTIONS_METADATA.find((s) => s.id === solId);
+    const commentsList = allComments[solId] || [];
+    commentsList.forEach((c) => {
+      recentComments.push({
+        ...c,
+        solutionTitle: solMeta ? solMeta.title : solId,
+        region: solMeta ? solMeta.region : "pacifico",
+        solutionNumber: solMeta ? solMeta.number : 1
+      });
+    });
+  });
+
+  recentComments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  return {
+    summary: {
+      totalVotes,
+      totalComments,
+      uniqueVoters: uniqueVoterSet.size,
+      uniqueOrganizations: uniqueOrgsSet.size,
+      pacificoVotes,
+      caribeVotes,
+      leadingSolution
+    },
+    metrics,
+    recentComments,
+    lastUpdated: new Date().toISOString()
+  };
+}
+
+// Helper to generate full CSV string with UTF-8 BOM
+function generateReportsCSV(store: FeedbackStore): string {
+  const data = computeReports(store);
+  const now = new Date();
+
+  let csv = "\uFEFF"; // UTF-8 BOM for Microsoft Excel
+  csv += "REPORTE OFICIAL DE VOTACIONES Y RETROALIMENTACIÓN TERRITORIAL\n";
+  csv += "VENTANA DE CONECTIVIDAD SIGNIFICATIVA (VCS) · IDTF / OIT / UNIÓN EUROPEA\n";
+  csv += `Fecha y Hora de Emisión;${now.toLocaleString("es-CO")}\n\n`;
+
+  // 1. Resumen
+  csv += "1. CONSOLIDADO GENERAL DE PARTICIPACIÓN\n";
+  csv += "Indicador Clave;Valor\n";
+  csv += `Votos Totales Acumulados (Likes);${data.summary.totalVotes}\n`;
+  csv += `Votos Registrados en Nodo Pacífico;${data.summary.pacificoVotes}\n`;
+  csv += `Votos Registrados en Nodo Caribe;${data.summary.caribeVotes}\n`;
+  csv += `Total Comentarios y Aportes Cualitativos;${data.summary.totalComments}\n`;
+  csv += `Aliados y Votantes Únicos;${data.summary.uniqueVoters}\n`;
+  csv += `Organizaciones / Entidades Participantes;${data.summary.uniqueOrganizations}\n\n`;
+
+  // 2. Ranking de propuestas
+  csv += "2. RANKING Y RESULTADOS POR PROPUESTA TERRITORIAL\n";
+  csv += "Puesto;ID Propuesta;Nodo Territorial;Número;Título de la Propuesta;Votos (Likes);% de Votación;Total Comentarios;Focos Temáticos\n";
+  data.metrics.forEach((m) => {
+    const escapedTitle = `"${(m.title || "").replace(/"/g, '""')}"`;
+    const escapedTags = `"${(m.tags || []).join(", ").replace(/"/g, '""')}"`;
+    csv += `${m.rank};${m.solutionId};${m.region.toUpperCase()};${m.number};${escapedTitle};${m.votesCount};${m.votePercentage}%;${m.commentsCount};${escapedTags}\n`;
+  });
+
+  // 3. Detalle completo de comentarios
+  csv += "\n3. REGISTRO DETALLADO DE COMENTARIOS Y APORTES CUALITATIVOS\n";
+  csv += "ID Propuesta;Nodo Territorial;Número;Título de la Propuesta;Autor del Comentario;Organización / Entidad;Fecha y Hora Registro;Comentario o Aporte\n";
+
+  let hasComments = false;
+  data.metrics.forEach((m) => {
+    (m.comments || []).forEach((c) => {
+      hasComments = true;
+      const textEscaped = `"${(c.text || "").replace(/"/g, '""')}"`;
+      const authorEscaped = `"${(c.authorName || "Aliado Invitado").replace(/"/g, '""')}"`;
+      const orgEscaped = `"${(c.authorOrg || "Organización Aliada").replace(/"/g, '""')}"`;
+      const titleEscaped = `"${(m.title || "").replace(/"/g, '""')}"`;
+      csv += `${m.solutionId};${m.region.toUpperCase()};${m.number};${titleEscaped};${authorEscaped};${orgEscaped};${c.createdAt || ""};${textEscaped}\n`;
+    });
+  });
+
+  if (!hasComments) {
+    csv += "Sin comentarios registrados aún en la plataforma;;;;;;;\n";
+  }
+
+  return csv;
+}
+
+// 2. Real-time Aggregated Voting and Feedback Reports (JSON)
 app.get("/api/admin/reports", (req, res) => {
   try {
     const store = getStore();
-    const allLikes = store.likes || {};
-    const allComments = store.comments || {};
-
-    let totalVotes = 0;
-    const uniqueVoterSet = new Set<string>();
-    const uniqueOrgsSet = new Set<string>();
-
-    // Count votes and voters
-    Object.keys(allLikes).forEach((solId) => {
-      const voters = allLikes[solId] || [];
-      totalVotes += voters.length;
-      voters.forEach((vid) => uniqueVoterSet.add(vid));
-    });
-
-    // Count comments and gather organizations
-    let totalComments = 0;
-    Object.keys(allComments).forEach((solId) => {
-      const commentsList = allComments[solId] || [];
-      totalComments += commentsList.length;
-      commentsList.forEach((c) => {
-        if (c.authorOrg && c.authorOrg.trim()) {
-          uniqueOrgsSet.add(c.authorOrg.trim());
-        }
-      });
-    });
-
-    // Also include registered users organizations
-    (store.users || []).forEach((u) => {
-      if (u.organization && u.organization.trim()) {
-        uniqueOrgsSet.add(u.organization.trim());
-      }
-    });
-
-    // Compute metrics for each solution
-    const metrics = SOLUTIONS_METADATA.map((sol) => {
-      const voters = allLikes[sol.id] || [];
-      const comments = allComments[sol.id] || [];
-      const votesCount = voters.length;
-      const commentsCount = comments.length;
-      const votePercentage = totalVotes > 0 ? Number(((votesCount / totalVotes) * 100).toFixed(1)) : 0;
-
-      // Unique organizations for this solution
-      const orgSet = new Set<string>();
-      comments.forEach((c) => {
-        if (c.authorOrg) orgSet.add(c.authorOrg);
-      });
-
-      return {
-        solutionId: sol.id,
-        title: sol.title,
-        region: sol.region,
-        number: sol.number,
-        votesCount,
-        commentsCount,
-        votePercentage,
-        tags: sol.tags,
-        organizations: Array.from(orgSet),
-        comments,
-        rank: 0 // will be assigned below
-      };
-    });
-
-    // Sort by votes (descending), then by comments (descending)
-    metrics.sort((a, b) => {
-      if (b.votesCount !== a.votesCount) {
-        return b.votesCount - a.votesCount;
-      }
-      return b.commentsCount - a.commentsCount;
-    });
-
-    // Assign ranking
-    metrics.forEach((item, index) => {
-      item.rank = index + 1;
-    });
-
-    const pacificoVotes = metrics
-      .filter((m) => m.region === "pacifico")
-      .reduce((sum, m) => sum + m.votesCount, 0);
-
-    const caribeVotes = metrics
-      .filter((m) => m.region === "caribe")
-      .reduce((sum, m) => sum + m.votesCount, 0);
-
-    const leadingSolution = metrics.length > 0 ? {
-      title: metrics[0].title,
-      region: metrics[0].region,
-      votes: metrics[0].votesCount
-    } : undefined;
-
-    // Flatten all recent comments and sort chronologically (most recent first)
-    const recentComments: Array<CommentRecord & { solutionTitle: string; region: string; solutionNumber: number }> = [];
-    Object.keys(allComments).forEach((solId) => {
-      const solMeta = SOLUTIONS_METADATA.find((s) => s.id === solId);
-      const commentsList = allComments[solId] || [];
-      commentsList.forEach((c) => {
-        recentComments.push({
-          ...c,
-          solutionTitle: solMeta ? solMeta.title : solId,
-          region: solMeta ? solMeta.region : "pacifico",
-          solutionNumber: solMeta ? solMeta.number : 1
-        });
-      });
-    });
-
-    recentComments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-    res.json({
-      summary: {
-        totalVotes,
-        totalComments,
-        uniqueVoters: uniqueVoterSet.size,
-        uniqueOrganizations: uniqueOrgsSet.size,
-        pacificoVotes,
-        caribeVotes,
-        leadingSolution
-      },
-      metrics,
-      recentComments,
-      lastUpdated: new Date().toISOString()
-    });
+    const reports = computeReports(store);
+    res.json(reports);
   } catch (err: any) {
     console.error("Error generating reports:", err);
     res.status(500).json({ error: "Error al generar reportes en tiempo real." });
+  }
+});
+
+// 2.1 Download CSV of Reports directly from Server
+app.get("/api/admin/reports/csv", (req, res) => {
+  try {
+    const store = getStore();
+    const csvContent = generateReportsCSV(store);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const filename = `Reporte_Votaciones_VCS_${dateStr}.csv`;
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.send(csvContent);
+  } catch (err: any) {
+    console.error("Error generating CSV report:", err);
+    res.status(500).json({ error: "Error al generar el archivo CSV." });
+  }
+});
+
+// 2.2 Download JSON of Reports directly from Server
+app.get("/api/admin/reports/json", (req, res) => {
+  try {
+    const store = getStore();
+    const reports = computeReports(store);
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const filename = `Reporte_VCS_Data_${dateStr}.json`;
+
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.send(JSON.stringify(reports, null, 2));
+  } catch (err: any) {
+    console.error("Error exporting JSON report:", err);
+    res.status(500).json({ error: "Error al generar el archivo JSON." });
   }
 });
 

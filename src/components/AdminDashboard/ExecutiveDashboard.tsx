@@ -22,7 +22,10 @@ import {
   Trash2,
   AlertTriangle,
   CheckCircle2,
-  X
+  X,
+  Copy,
+  Check,
+  FileText
 } from "lucide-react";
 import { RealtimeReportData, SolutionReportMetric, AdminAuthUser } from "../../types";
 import { fetchRealtimeReports, saveStoredAdminUser, resetFeedbackDataApi } from "../../lib/api";
@@ -49,12 +52,15 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<"votes" | "comments" | "number">("votes");
 
-  // Modals
+  // Modals & Export States
   const [selectedProposal, setSelectedProposal] = useState<SolutionReportMetric | null>(null);
   const [isWhitelistOpen, setIsWhitelistOpen] = useState(false);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const handleConfirmReset = async () => {
     setIsResetting(true);
@@ -156,53 +162,149 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
     return Math.max(1, ...reportData.metrics.map((m) => m.votesCount));
   }, [reportData]);
 
-  // Export CSV function
-  const handleExportCSV = () => {
-    if (!reportData) return;
+  // Helper to build CSV content safely with UTF-8 BOM and local semicolons
+  const buildCSVContent = (): string => {
+    if (!reportData) return "";
 
-    let csvContent = "\uFEFF"; // UTF-8 BOM for Excel
+    let csvContent = "\uFEFF"; // UTF-8 BOM for Microsoft Excel
     csvContent += "REPORTE EJECUTIVO DE VOTACIONES Y RETROALIMENTACIÓN - VENTANA DE CONECTIVIDAD SIGNIFICATIVA\n";
-    csvContent += `Generado el: ${new Date().toLocaleString("es-CO")}\n`;
-    csvContent += `Evaluador: ${adminUser.name} (${adminUser.organization} - ${adminUser.email})\n\n`;
+    csvContent += "PROGRAMA DE EMPLEABILIDAD TIC · IDTF / OIT / UNIÓN EUROPEA\n";
+    csvContent += `Generado el;${new Date().toLocaleString("es-CO")}\n`;
+    csvContent += `Evaluador / Auditor;${adminUser.name} (${adminUser.organization} - ${adminUser.email})\n\n`;
 
-    // Summary section
-    csvContent += "RESUMEN GENERAL\n";
-    csvContent += `Total Votos Registrados;${reportData.summary.totalVotes}\n`;
+    // 1. Resumen General
+    csvContent += "1. CONSOLIDADO GENERAL DE PARTICIPACIÓN\n";
+    csvContent += "Indicador Clave;Valor\n";
+    csvContent += `Total Votos / Likes Registrados;${reportData.summary.totalVotes}\n`;
     csvContent += `Votos Nodo Pacífico;${reportData.summary.pacificoVotes}\n`;
     csvContent += `Votos Nodo Caribe;${reportData.summary.caribeVotes}\n`;
-    csvContent += `Total Comentarios Registrados;${reportData.summary.totalComments}\n`;
-    csvContent += `Aliados Votantes Únicos;${reportData.summary.uniqueVoters}\n`;
+    csvContent += `Total Comentarios y Aportes;${reportData.summary.totalComments}\n`;
+    csvContent += `Aliados y Votantes Únicos;${reportData.summary.uniqueVoters}\n`;
     csvContent += `Organizaciones Involucradas;${reportData.summary.uniqueOrganizations}\n\n`;
 
-    // Proposals table
-    csvContent += "RANKING DE PROPUESTAS TERRITORIALES\n";
-    csvContent += "Ranking;ID Propuesta;Nodo;Numero;Título;Votos / Likes;% del Total;Comentarios;Focos Temáticos\n";
+    // 2. Ranking de propuestas
+    csvContent += "2. RANKING DE PROPUESTAS TERRITORIALES\n";
+    csvContent += "Ranking;ID Propuesta;Nodo;Número;Título de la Propuesta;Votos / Likes;% del Total;Comentarios;Focos Temáticos\n";
 
     reportData.metrics.forEach((m) => {
-      const escapedTitle = `"${m.title.replace(/"/g, '""')}"`;
-      const tagsStr = `"${m.tags.join(", ")}"`;
+      const escapedTitle = `"${(m.title || "").replace(/"/g, '""')}"`;
+      const tagsStr = `"${(m.tags || []).join(", ").replace(/"/g, '""')}"`;
       csvContent += `${m.rank};${m.solutionId};${m.region.toUpperCase()};${m.number};${escapedTitle};${m.votesCount};${m.votePercentage}%;${m.commentsCount};${tagsStr}\n`;
     });
 
-    csvContent += "\nDETALLE COMPLETO DE COMENTARIOS Y RETROALIMENTACIÓN CUALITATIVA\n";
-    csvContent += "ID Propuesta;Nodo;Autor;Organización;Fecha;Comentario / Retroalimentación\n";
+    // 3. Detalle completo de comentarios
+    csvContent += "\n3. DETALLE COMPLETO DE COMENTARIOS Y RETROALIMENTACIÓN CUALITATIVA\n";
+    csvContent += "ID Propuesta;Nodo;Número;Título de la Solución;Autor;Organización;Fecha;Comentario / Retroalimentación\n";
 
+    let hasComments = false;
     reportData.metrics.forEach((m) => {
-      m.comments.forEach((c) => {
-        const textEscaped = `"${c.text.replace(/"/g, '""')}"`;
-        const authorEscaped = `"${c.authorName.replace(/"/g, '""')}"`;
-        const orgEscaped = `"${c.authorOrg.replace(/"/g, '""')}"`;
-        csvContent += `${m.solutionId};${m.region.toUpperCase()};${authorEscaped};${orgEscaped};${c.createdAt};${textEscaped}\n`;
+      (m.comments || []).forEach((c) => {
+        hasComments = true;
+        const textEscaped = `"${(c.text || "").replace(/"/g, '""')}"`;
+        const authorEscaped = `"${(c.authorName || "Aliado Invitado").replace(/"/g, '""')}"`;
+        const orgEscaped = `"${(c.authorOrg || "Organización Aliada").replace(/"/g, '""')}"`;
+        const titleEscaped = `"${(m.title || "").replace(/"/g, '""')}"`;
+        csvContent += `${m.solutionId};${m.region.toUpperCase()};${m.number};${titleEscaped};${authorEscaped};${orgEscaped};${c.createdAt || ""};${textEscaped}\n`;
       });
     });
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Reporte_Votaciones_VCS_${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    if (!hasComments) {
+      csvContent += "Sin comentarios registrados aún en la plataforma;;;;;;;\n";
+    }
+
+    return csvContent;
+  };
+
+  // Safe file downloader with DOM attachment and delayed revoke
+  const triggerDownload = (blob: Blob, filename: string): boolean => {
+    try {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
+        URL.revokeObjectURL(url);
+      }, 4000);
+      return true;
+    } catch (e) {
+      console.warn("Blob download error:", e);
+      return false;
+    }
+  };
+
+  // Direct server download
+  const triggerServerDownload = (endpoint: string, filename: string): boolean => {
+    try {
+      const link = document.createElement("a");
+      link.href = `${endpoint}?_t=${Date.now()}`;
+      link.download = filename;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
+      }, 4000);
+      return true;
+    } catch (e) {
+      console.warn("Server direct download error:", e);
+      return false;
+    }
+  };
+
+  // Export CSV function (triggers client Blob + server fallback)
+  const handleExportCSV = () => {
+    const csvContent = buildCSVContent();
+    const filename = `Reporte_Votaciones_VCS_${new Date().toISOString().slice(0, 10)}.csv`;
+
+    if (csvContent) {
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      triggerDownload(blob, filename);
+    }
+
+    // Always trigger direct server route as complementary guarantee
+    triggerServerDownload("/api/admin/reports/csv", filename);
+
+    setExportNotice("Descarga de CSV iniciada. Si tu navegador bloquea la descarga en esta pestaña, puedes copiarlo con un clic o abrir el panel de exportación.");
+    setTimeout(() => setExportNotice(null), 8000);
+  };
+
+  // Copy CSV content to clipboard for immediate paste into Excel or Google Sheets
+  const handleCopyCSV = async () => {
+    const csvContent = buildCSVContent();
+    if (!csvContent) {
+      setExportNotice("No hay datos disponibles para copiar.");
+      return;
+    }
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(csvContent);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = csvContent;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setCopied(true);
+      setExportNotice("¡Reporte CSV copiado al portapapeles! Puedes pegarlo (Ctrl+V) directamente en Microsoft Excel, LibreOffice o Google Sheets.");
+      setTimeout(() => setCopied(false), 3000);
+      setTimeout(() => setExportNotice(null), 7000);
+    } catch (err) {
+      console.error("Clipboard copy failed:", err);
+      setExportNotice("No se pudo copiar automáticamente. Usa la descarga directa desde el servidor.");
+    }
   };
 
   // Export JSON function
@@ -216,13 +318,15 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
       },
       ...reportData
     };
-    const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Reporte_VCS_Data_${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    const jsonStr = JSON.stringify(exportObj, null, 2);
+    const filename = `Reporte_VCS_Data_${new Date().toISOString().slice(0, 10)}.json`;
+
+    const blob = new Blob([jsonStr], { type: "application/json;charset=utf-8;" });
+    triggerDownload(blob, filename);
+    triggerServerDownload("/api/admin/reports/json", filename);
+
+    setExportNotice("Descarga de JSON institucional iniciada.");
+    setTimeout(() => setExportNotice(null), 6000);
   };
 
   // Print function
@@ -306,6 +410,17 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
             >
               <ShieldCheck className="w-3.5 h-3.5 text-[var(--idtf-morado)]" />
               <span className="hidden sm:inline">Whitelist</span>
+            </button>
+
+            {/* Export modal trigger button */}
+            <button
+              type="button"
+              onClick={() => setIsExportModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 text-xs font-semibold border border-emerald-500/50 transition-all shadow"
+              title="Descargar o exportar reportes de votaciones y comentarios (CSV / JSON)"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Exportar</span>
             </button>
 
             {/* Reset / Purge Data Button (Clean for Production) */}
@@ -746,17 +861,45 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
             </div>
 
             {/* Export buttons */}
-            <div className="flex items-center gap-2 shrink-0 print:hidden">
+            <div className="flex flex-wrap items-center gap-2 shrink-0 print:hidden">
+              {/* Primary CSV export button */}
               <button
                 type="button"
                 onClick={handleExportCSV}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold transition-colors shadow"
-                title="Descargar archivo Excel / CSV"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md hover:shadow-emerald-500/20 active:scale-95"
+                title="Descargar archivo Excel / CSV de forma automática"
               >
                 <FileSpreadsheet className="w-4 h-4" />
-                <span>Exportar CSV</span>
+                <span>Descargar CSV</span>
               </button>
 
+              {/* Direct Copy to Clipboard for Excel */}
+              <button
+                type="button"
+                onClick={handleCopyCSV}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition-all ${
+                  copied 
+                    ? "bg-emerald-500/30 border-emerald-400 text-emerald-200" 
+                    : "bg-white/10 hover:bg-white/15 border-white/15 text-white"
+                }`}
+                title="Copiar datos al portapapeles para pegar directo (Ctrl+V) en Excel"
+              >
+                {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-white/70" />}
+                <span>{copied ? "¡Copiado!" : "Copiar CSV"}</span>
+              </button>
+
+              {/* Full Export Options Modal */}
+              <button
+                type="button"
+                onClick={() => setIsExportModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-white/90 text-xs font-semibold transition-colors"
+                title="Ver todas las opciones de exportación y enlace directo de servidor"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--idtf-naranja)]" />
+                <span className="hidden sm:inline">Más Opciones</span>
+              </button>
+
+              {/* JSON export */}
               <button
                 type="button"
                 onClick={handleExportJSON}
@@ -767,6 +910,7 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
                 <span>JSON</span>
               </button>
 
+              {/* Print / PDF export */}
               <button
                 type="button"
                 onClick={handlePrint}
@@ -967,6 +1111,195 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Options & Server Fallback Modal */}
+      {isExportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[var(--idtf-navy-light)] border border-white/20 rounded-2xl max-w-2xl w-full p-6 text-white shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+            
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                  <FileSpreadsheet className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <span>Exportación Oficial de Reportes</span>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30 uppercase font-semibold">
+                      En Vivo
+                    </span>
+                  </h3>
+                  <p className="text-xs text-white/60">
+                    Descarga consolidada de votos, porcentajes, ranking y comentarios cualitativos territoriales.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsExportModalOpen(false)}
+                className="p-1 rounded-lg text-white/50 hover:text-white hover:bg-white/10"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Export Method Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              
+              {/* Card 1: Descargar CSV */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-emerald-500/50 transition-all flex flex-col justify-between space-y-3 group">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>Descargar CSV (Excel)</span>
+                  </div>
+                  <p className="text-[11px] text-white/60 leading-relaxed">
+                    Formato regional con separador punto y coma (;) y codificación UTF-8 BOM para apertura nativa e inmediata en Microsoft Excel.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleExportCSV();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Descargar Archivo CSV</span>
+                </button>
+              </div>
+
+              {/* Card 2: Copiar al Portapapeles */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-[var(--idtf-morado)]/50 transition-all flex flex-col justify-between space-y-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-purple-400 font-bold text-sm">
+                    <Copy className="w-4 h-4" />
+                    <span>Copiar CSV al Portapapeles</span>
+                  </div>
+                  <p className="text-[11px] text-white/60 leading-relaxed">
+                    Copia todo el texto del reporte para pegarlo directo (Ctrl+V) en Microsoft Excel, Google Sheets o un correo sin depender de descargas.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyCSV}
+                  className={`w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-bold transition-colors ${
+                    copied 
+                      ? "bg-purple-600/40 text-purple-200 border border-purple-400" 
+                      : "bg-[var(--idtf-morado)] hover:bg-[var(--idtf-morado)]/80 text-white"
+                  }`}
+                >
+                  {copied ? <Check className="w-3.5 h-3.5 text-purple-300" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied ? "¡Datos Copiados!" : "Copiar al Portapapeles"}</span>
+                </button>
+              </div>
+
+              {/* Card 3: Descarga Directa desde Servidor */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-cyan-500/50 transition-all flex flex-col justify-between space-y-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-cyan-400 font-bold text-sm">
+                    <ExternalLink className="w-4 h-4" />
+                    <span>Descarga Directa Servidor</span>
+                  </div>
+                  <p className="text-[11px] text-white/60 leading-relaxed">
+                    Enlace HTTP nativo directo desde el backend (/api/admin/reports/csv). Ideal si el navegador o iframe bloquea descargas en segundo plano.
+                  </p>
+                </div>
+                <a
+                  href="/api/admin/reports/csv"
+                  download={`Reporte_Votaciones_VCS_${new Date().toISOString().slice(0, 10)}.csv`}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition-colors text-center"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Enlace Servidor HTTP</span>
+                </a>
+              </div>
+
+              {/* Card 4: Descargar JSON */}
+              <div className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-amber-500/50 transition-all flex flex-col justify-between space-y-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
+                    <FileText className="w-4 h-4" />
+                    <span>Descargar Archivo JSON</span>
+                  </div>
+                  <p className="text-[11px] text-white/60 leading-relaxed">
+                    Estructura técnica completa con metadatos, objetos anidados de cada comentario y sellos de tiempo ISO para auditoría digital.
+                  </p>
+                </div>
+                <a
+                  href="/api/admin/reports/json"
+                  download={`Reporte_VCS_Data_${new Date().toISOString().slice(0, 10)}.json`}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-colors text-center border border-white/20"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Descargar Archivo JSON</span>
+                </a>
+              </div>
+
+            </div>
+
+            {/* CSV Data Preview Box */}
+            <div className="space-y-2 pt-2">
+              <div className="flex items-center justify-between text-xs text-white/70">
+                <span className="font-semibold text-white/80">Previsualización del Contenido CSV:</span>
+                <span className="text-[10px] text-white/40">Separador: ";" · UTF-8 BOM</span>
+              </div>
+              <div className="bg-black/50 p-3 rounded-xl border border-white/10 text-[11px] font-mono overflow-x-auto max-h-36 whitespace-pre text-emerald-300 select-all scrollbar-thin">
+                {buildCSVContent() || "Sin datos para previsualizar."}
+              </div>
+            </div>
+
+            {/* Footer actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-white/10">
+              <span className="text-[11px] text-white/50">
+                Total Propuestas: <strong>9</strong> · Nodo Pacífico (5) · Nodo Caribe (4)
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsExportModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors"
+              >
+                Cerrar Ventana
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Export Notice Banner Toast */}
+      {exportNotice && (
+        <div className="fixed bottom-6 left-6 z-50 flex flex-wrap items-center gap-3 px-4 py-3 rounded-xl bg-slate-900/95 border border-emerald-500/50 text-white shadow-2xl backdrop-blur-md max-w-lg">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <div className="text-xs flex-1">
+            <span className="font-medium text-white/90">{exportNotice}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleCopyCSV}
+              className="px-2.5 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-[11px] font-semibold border border-white/15 transition-colors"
+            >
+              Copiar
+            </button>
+            <a
+              href="/api/admin/reports/csv"
+              download={`Reporte_Votaciones_VCS_${new Date().toISOString().slice(0, 10)}.csv`}
+              className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold transition-colors"
+            >
+              Descarga Directa
+            </a>
+            <button
+              type="button"
+              onClick={() => setExportNotice(null)}
+              className="p-1 rounded text-white/40 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}
