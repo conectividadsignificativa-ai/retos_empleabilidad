@@ -191,6 +191,7 @@ export function App() {
     return (
       <ExecutiveDashboard
         adminUser={adminUser}
+        feedback={feedback}
         onLogout={() => {
           setAdminUser(null);
           setPage("landing");

@@ -27,19 +27,119 @@ import {
   Check,
   FileText
 } from "lucide-react";
-import { RealtimeReportData, SolutionReportMetric, AdminAuthUser } from "../../types";
+import { RealtimeReportData, SolutionReportMetric, AdminAuthUser, FeedbackData } from "../../types";
 import { fetchRealtimeReports, saveStoredAdminUser, resetFeedbackDataApi } from "../../lib/api";
+import { SOLUTIONS_DATA } from "../../data/solutionsData";
 import { ProposalDetailModal } from "./ProposalDetailModal";
 import { WhitelistManagerModal } from "./WhitelistManagerModal";
 
+// Helper to compute fallback report data from SOLUTIONS_DATA and feedback if server is loading or offline
+function generateDefaultReportData(feedback?: FeedbackData): RealtimeReportData {
+  const likes = feedback?.likes || {};
+  const comments = feedback?.comments || {};
+
+  let totalVotes = 0;
+  const uniqueVoterSet = new Set<string>();
+  const uniqueOrgsSet = new Set<string>();
+
+  Object.keys(likes).forEach((id) => {
+    const v = likes[id];
+    const vCount = typeof v === "number" ? v : 0;
+    totalVotes += vCount;
+    if (vCount > 0) uniqueVoterSet.add(`voter-${id}`);
+  });
+
+  let totalComments = 0;
+  Object.keys(comments).forEach((id) => {
+    const list = comments[id] || [];
+    totalComments += list.length;
+    list.forEach((c) => {
+      if (c.authorOrg && c.authorOrg.trim()) uniqueOrgsSet.add(c.authorOrg.trim());
+    });
+  });
+
+  const metrics: SolutionReportMetric[] = SOLUTIONS_DATA.map((s) => {
+    const v = likes[s.id];
+    const solLikes = typeof v === "number" ? v : 0;
+    const solComments = comments[s.id] || [];
+    const votePercentage = totalVotes > 0 ? Number(((solLikes / totalVotes) * 100).toFixed(1)) : 0;
+    const orgs = Array.from(new Set(solComments.map((c) => c.authorOrg).filter(Boolean)));
+
+    return {
+      solutionId: s.id,
+      title: s.title,
+      region: s.region,
+      number: s.number,
+      votesCount: solLikes,
+      commentsCount: solComments.length,
+      votePercentage,
+      tags: s.tags,
+      organizations: orgs,
+      comments: solComments.map((c) => ({
+        id: c.id,
+        solutionId: s.id,
+        authorName: c.authorName,
+        authorOrg: c.authorOrg,
+        text: c.text,
+        createdAt: c.createdAt
+      })),
+      rank: 0
+    };
+  });
+
+  metrics.sort((a, b) => b.votesCount - a.votesCount || b.commentsCount - a.commentsCount);
+  metrics.forEach((m, idx) => {
+    m.rank = idx + 1;
+  });
+
+  const pacificoVotes = metrics.filter((m) => m.region === "pacifico").reduce((acc, m) => acc + m.votesCount, 0);
+  const caribeVotes = metrics.filter((m) => m.region === "caribe").reduce((acc, m) => acc + m.votesCount, 0);
+
+  const leadingSolution = metrics.length > 0 && metrics[0].votesCount > 0 ? {
+    title: metrics[0].title,
+    region: metrics[0].region,
+    votes: metrics[0].votesCount
+  } : undefined;
+
+  const recentComments: any[] = [];
+  Object.keys(comments).forEach((solId) => {
+    const sol = SOLUTIONS_DATA.find((s) => s.id === solId);
+    (comments[solId] || []).forEach((c) => {
+      recentComments.push({
+        ...c,
+        solutionTitle: sol ? sol.title : solId,
+        region: sol ? sol.region : "pacifico",
+        solutionNumber: sol ? sol.number : 1
+      });
+    });
+  });
+  recentComments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  return {
+    summary: {
+      totalVotes,
+      totalComments,
+      uniqueVoters: uniqueVoterSet.size,
+      uniqueOrganizations: uniqueOrgsSet.size,
+      pacificoVotes,
+      caribeVotes,
+      leadingSolution
+    },
+    metrics,
+    recentComments,
+    lastUpdated: new Date().toISOString()
+  };
+}
+
 interface ExecutiveDashboardProps {
   adminUser: AdminAuthUser;
+  feedback?: FeedbackData;
   onLogout: () => void;
   onBackToApp: () => void;
 }
 
-export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: ExecutiveDashboardProps) {
-  const [reportData, setReportData] = useState<RealtimeReportData | null>(null);
+export function ExecutiveDashboard({ adminUser, feedback, onLogout, onBackToApp }: ExecutiveDashboardProps) {
+  const [reportData, setReportData] = useState<RealtimeReportData>(() => generateDefaultReportData(feedback));
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -84,11 +184,18 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
     if (isManual) setRefreshing(true);
     try {
       const data = await fetchRealtimeReports();
-      setReportData(data);
+      if (data && data.metrics && data.metrics.length > 0) {
+        setReportData(data);
+      } else if (feedback) {
+        setReportData(generateDefaultReportData(feedback));
+      }
       setLastRefreshedAt(new Date());
       setSecondsAgo(0);
     } catch (err) {
-      console.error("Error loading real-time reports:", err);
+      console.warn("Could not fetch reports from server, using local dataset fallback:", err);
+      if (feedback) {
+        setReportData(generateDefaultReportData(feedback));
+      }
     } finally {
       setLoading(false);
       if (isManual) {
@@ -96,6 +203,19 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
       }
     }
   };
+
+  // Sync if feedback prop changes
+  useEffect(() => {
+    if (feedback) {
+      setReportData((prev) => {
+        // If prev came from server with real data, keep it; otherwise merge with feedback
+        if (prev && prev.summary && (prev.summary.totalVotes > 0 || prev.summary.totalComments > 0)) {
+          return prev;
+        }
+        return generateDefaultReportData(feedback);
+      });
+    }
+  }, [feedback]);
 
   // Initial load
   useEffect(() => {
@@ -164,64 +284,83 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
 
   // Helper to build CSV content safely with UTF-8 BOM and local semicolons
   const buildCSVContent = (): string => {
-    if (!reportData) return "";
+    try {
+      const activeData = reportData || generateDefaultReportData(feedback);
+      const now = new Date();
 
-    let csvContent = "\uFEFF"; // UTF-8 BOM for Microsoft Excel
-    csvContent += "REPORTE EJECUTIVO DE VOTACIONES Y RETROALIMENTACIÓN - VENTANA DE CONECTIVIDAD SIGNIFICATIVA\n";
-    csvContent += "PROGRAMA DE EMPLEABILIDAD TIC · IDTF / OIT / UNIÓN EUROPEA\n";
-    csvContent += `Generado el;${new Date().toLocaleString("es-CO")}\n`;
-    csvContent += `Evaluador / Auditor;${adminUser.name} (${adminUser.organization} - ${adminUser.email})\n\n`;
+      let csvContent = "\uFEFF"; // UTF-8 BOM for Microsoft Excel
+      csvContent += "REPORTE EJECUTIVO DE VOTACIONES Y RETROALIMENTACIÓN - VENTANA DE CONECTIVIDAD SIGNIFICATIVA\n";
+      csvContent += "PROGRAMA DE EMPLEABILIDAD TIC · IDTF / OIT / UNIÓN EUROPEA\n";
+      csvContent += `Fecha y Hora de Emisión;${now.toLocaleString("es-CO")}\n`;
+      csvContent += `Evaluador / Auditor;${adminUser?.name || "Evaluador Estratégico"} (${adminUser?.organization || "OIT / IDTF"} - ${adminUser?.email || "conectividadsignificativa@gmail.com"})\n\n`;
 
-    // 1. Resumen General
-    csvContent += "1. CONSOLIDADO GENERAL DE PARTICIPACIÓN\n";
-    csvContent += "Indicador Clave;Valor\n";
-    csvContent += `Total Votos / Likes Registrados;${reportData.summary.totalVotes}\n`;
-    csvContent += `Votos Nodo Pacífico;${reportData.summary.pacificoVotes}\n`;
-    csvContent += `Votos Nodo Caribe;${reportData.summary.caribeVotes}\n`;
-    csvContent += `Total Comentarios y Aportes;${reportData.summary.totalComments}\n`;
-    csvContent += `Aliados y Votantes Únicos;${reportData.summary.uniqueVoters}\n`;
-    csvContent += `Organizaciones Involucradas;${reportData.summary.uniqueOrganizations}\n\n`;
+      // 1. Resumen General
+      csvContent += "1. CONSOLIDADO GENERAL DE PARTICIPACIÓN\n";
+      csvContent += "Indicador Clave;Valor\n";
+      csvContent += `Total Votos / Likes Registrados;${activeData.summary?.totalVotes ?? 0}\n`;
+      csvContent += `Votos Registrados en Nodo Pacífico;${activeData.summary?.pacificoVotes ?? 0}\n`;
+      csvContent += `Votos Registrados en Nodo Caribe;${activeData.summary?.caribeVotes ?? 0}\n`;
+      csvContent += `Total Comentarios y Aportes;${activeData.summary?.totalComments ?? 0}\n`;
+      csvContent += `Aliados y Votantes Únicos;${activeData.summary?.uniqueVoters ?? 0}\n`;
+      csvContent += `Organizaciones Involucradas;${activeData.summary?.uniqueOrganizations ?? 0}\n\n`;
 
-    // 2. Ranking de propuestas
-    csvContent += "2. RANKING DE PROPUESTAS TERRITORIALES\n";
-    csvContent += "Ranking;ID Propuesta;Nodo;Número;Título de la Propuesta;Votos / Likes;% del Total;Comentarios;Focos Temáticos\n";
+      // 2. Ranking de propuestas
+      csvContent += "2. RANKING DE PROPUESTAS TERRITORIALES\n";
+      csvContent += "Ranking;ID Propuesta;Nodo Territorial;Número;Título de la Propuesta;Votos / Likes;% del Total;Total Comentarios;Focos Temáticos\n";
 
-    reportData.metrics.forEach((m) => {
-      const escapedTitle = `"${(m.title || "").replace(/"/g, '""')}"`;
-      const tagsStr = `"${(m.tags || []).join(", ").replace(/"/g, '""')}"`;
-      csvContent += `${m.rank};${m.solutionId};${m.region.toUpperCase()};${m.number};${escapedTitle};${m.votesCount};${m.votePercentage}%;${m.commentsCount};${tagsStr}\n`;
-    });
+      const metricsList = activeData.metrics && activeData.metrics.length > 0 
+        ? activeData.metrics 
+        : generateDefaultReportData(feedback).metrics;
 
-    // 3. Detalle completo de comentarios
-    csvContent += "\n3. DETALLE COMPLETO DE COMENTARIOS Y RETROALIMENTACIÓN CUALITATIVA\n";
-    csvContent += "ID Propuesta;Nodo;Número;Título de la Solución;Autor;Organización;Fecha;Comentario / Retroalimentación\n";
-
-    let hasComments = false;
-    reportData.metrics.forEach((m) => {
-      (m.comments || []).forEach((c) => {
-        hasComments = true;
-        const textEscaped = `"${(c.text || "").replace(/"/g, '""')}"`;
-        const authorEscaped = `"${(c.authorName || "Aliado Invitado").replace(/"/g, '""')}"`;
-        const orgEscaped = `"${(c.authorOrg || "Organización Aliada").replace(/"/g, '""')}"`;
-        const titleEscaped = `"${(m.title || "").replace(/"/g, '""')}"`;
-        csvContent += `${m.solutionId};${m.region.toUpperCase()};${m.number};${titleEscaped};${authorEscaped};${orgEscaped};${c.createdAt || ""};${textEscaped}\n`;
+      metricsList.forEach((m) => {
+        const escapedTitle = `"${(m.title || "").replace(/"/g, '""')}"`;
+        const tagsStr = `"${(m.tags || []).join(", ").replace(/"/g, '""')}"`;
+        csvContent += `${m.rank || ""};${m.solutionId || ""};${(m.region || "").toUpperCase()};${m.number || ""};${escapedTitle};${m.votesCount ?? 0};${m.votePercentage ?? 0}%;${m.commentsCount ?? 0};${tagsStr}\n`;
       });
-    });
 
-    if (!hasComments) {
-      csvContent += "Sin comentarios registrados aún en la plataforma;;;;;;;\n";
+      // 3. Detalle completo de comentarios
+      csvContent += "\n3. DETALLE COMPLETO DE COMENTARIOS Y RETROALIMENTACIÓN CUALITATIVA\n";
+      csvContent += "ID Propuesta;Nodo Territorial;Número;Título de la Solución;Autor del Comentario;Organización / Entidad;Fecha y Hora Registro;Comentario / Retroalimentación\n";
+
+      let hasComments = false;
+      metricsList.forEach((m) => {
+        (m.comments || []).forEach((c) => {
+          hasComments = true;
+          const textEscaped = `"${(c.text || "").replace(/"/g, '""')}"`;
+          const authorEscaped = `"${(c.authorName || "Aliado Invitado").replace(/"/g, '""')}"`;
+          const orgEscaped = `"${(c.authorOrg || "Organización Aliada").replace(/"/g, '""')}"`;
+          const titleEscaped = `"${(m.title || "").replace(/"/g, '""')}"`;
+          csvContent += `${m.solutionId || ""};${(m.region || "").toUpperCase()};${m.number || ""};${titleEscaped};${authorEscaped};${orgEscaped};${c.createdAt || ""};${textEscaped}\n`;
+        });
+      });
+
+      if (!hasComments) {
+        csvContent += "Sin comentarios registrados aún en la plataforma;;;;;;;\n";
+      }
+
+      return csvContent;
+    } catch (err) {
+      console.error("Error generating CSV content:", err);
+      // Fallback simple CSV with solutions
+      let fallback = "\uFEFFPuesto;ID Propuesta;Nodo;Numero;Titulo;Votos;Comentarios\n";
+      SOLUTIONS_DATA.forEach((s, idx) => {
+        fallback += `${idx + 1};${s.id};${s.region.toUpperCase()};${s.number};"${s.title.replace(/"/g, '""')}";0;0\n`;
+      });
+      return fallback;
     }
-
-    return csvContent;
   };
 
-  // Safe file downloader with DOM attachment and delayed revoke
-  const triggerDownload = (blob: Blob, filename: string): boolean => {
+  // Self-contained file downloader (Data URI + Blob)
+  // Generates and downloads files 100% inside client memory without out-of-band server requests
+  // preventing Chrome's "File wasn't available on site" error.
+  const saveTextFile = (content: string, filename: string, mimeType: string): boolean => {
     try {
-      const url = URL.createObjectURL(blob);
+      // 1. Data URI method: completely independent from network and object URL lifecycles
+      const encoded = encodeURIComponent(content);
+      const dataUri = `data:${mimeType};charset=utf-8,${encoded}`;
       const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
+      link.href = dataUri;
+      link.setAttribute("download", filename);
       link.style.display = "none";
       document.body.appendChild(link);
       link.click();
@@ -229,51 +368,72 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
         if (document.body.contains(link)) {
           document.body.removeChild(link);
         }
-        URL.revokeObjectURL(url);
-      }, 4000);
+      }, 1000);
       return true;
-    } catch (e) {
-      console.warn("Blob download error:", e);
-      return false;
+    } catch (dataErr) {
+      console.warn("Data URI method failed, falling back to Blob:", dataErr);
+      try {
+        const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", filename);
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          if (document.body.contains(link)) {
+            document.body.removeChild(link);
+          }
+          // Do NOT revoke immediately; keep alive for 2 minutes to allow browser write
+          setTimeout(() => URL.revokeObjectURL(url), 120000);
+        }, 1000);
+        return true;
+      } catch (blobErr) {
+        console.error("All client download methods failed:", blobErr);
+        return false;
+      }
     }
   };
 
-  // Direct server download
-  const triggerServerDownload = (endpoint: string, filename: string): boolean => {
-    try {
-      const link = document.createElement("a");
-      link.href = `${endpoint}?_t=${Date.now()}`;
-      link.download = filename;
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      setTimeout(() => {
-        if (document.body.contains(link)) {
-          document.body.removeChild(link);
-        }
-      }, 4000);
-      return true;
-    } catch (e) {
-      console.warn("Server direct download error:", e);
-      return false;
-    }
-  };
-
-  // Export CSV function (triggers client Blob + server fallback)
+  // Export CSV function (100% client generated, instant download)
   const handleExportCSV = () => {
     const csvContent = buildCSVContent();
-    const filename = `Reporte_Votaciones_VCS_${new Date().toISOString().slice(0, 10)}.csv`;
-
-    if (csvContent) {
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      triggerDownload(blob, filename);
+    if (!csvContent) {
+      setExportNotice("No hay datos disponibles para exportar.");
+      return;
     }
 
-    // Always trigger direct server route as complementary guarantee
-    triggerServerDownload("/api/admin/reports/csv", filename);
+    const filename = `Reporte_Votaciones_VCS_${new Date().toISOString().slice(0, 10)}.csv`;
+    const success = saveTextFile(csvContent, filename, "text/csv");
 
-    setExportNotice("Descarga de CSV iniciada. Si tu navegador bloquea la descarga en esta pestaña, puedes copiarlo con un clic o abrir el panel de exportación.");
+    if (success) {
+      setExportNotice("Archivo CSV descargado con éxito en tu carpeta de descargas. También puedes copiarlo al portapapeles si deseas pegarlo directo.");
+    } else {
+      setExportNotice("Error al iniciar la descarga. Usa la opción 'Copiar CSV' para pegar directamente en Excel.");
+    }
     setTimeout(() => setExportNotice(null), 8000);
+  };
+
+  // Server-side fetch download (uses authorized fetch in-memory, avoiding iframe download failure)
+  const handleServerFetchDownload = async () => {
+    try {
+      setExportNotice("Descargando reporte oficial generado por el servidor...");
+      const res = await fetch(`/api/admin/reports/csv?_t=${Date.now()}`);
+      if (!res.ok) throw new Error("Respuesta no satisfactoria del servidor");
+      const text = await res.text();
+      const filename = `Reporte_Votaciones_VCS_${new Date().toISOString().slice(0, 10)}.csv`;
+      saveTextFile(text, filename, "text/csv");
+      setExportNotice("Reporte CSV descargado exitosamente desde el servidor.");
+      setTimeout(() => setExportNotice(null), 6000);
+    } catch (err) {
+      console.warn("Fetch from server failed, using local generation:", err);
+      const csv = buildCSVContent();
+      const filename = `Reporte_Votaciones_VCS_${new Date().toISOString().slice(0, 10)}.csv`;
+      saveTextFile(csv, filename, "text/csv");
+      setExportNotice("Reporte CSV generado y guardado en tu equipo.");
+      setTimeout(() => setExportNotice(null), 6000);
+    }
   };
 
   // Copy CSV content to clipboard for immediate paste into Excel or Google Sheets
@@ -303,11 +463,11 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
       setTimeout(() => setExportNotice(null), 7000);
     } catch (err) {
       console.error("Clipboard copy failed:", err);
-      setExportNotice("No se pudo copiar automáticamente. Usa la descarga directa desde el servidor.");
+      setExportNotice("No se pudo copiar automáticamente. Usa la descarga directa.");
     }
   };
 
-  // Export JSON function
+  // Export JSON function (100% client generated, instant download)
   const handleExportJSON = () => {
     if (!reportData) return;
     const exportObj = {
@@ -321,11 +481,8 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
     const jsonStr = JSON.stringify(exportObj, null, 2);
     const filename = `Reporte_VCS_Data_${new Date().toISOString().slice(0, 10)}.json`;
 
-    const blob = new Blob([jsonStr], { type: "application/json;charset=utf-8;" });
-    triggerDownload(blob, filename);
-    triggerServerDownload("/api/admin/reports/json", filename);
-
-    setExportNotice("Descarga de JSON institucional iniciada.");
+    saveTextFile(jsonStr, filename, "application/json");
+    setExportNotice("Archivo JSON exportado y guardado en tu equipo.");
     setTimeout(() => setExportNotice(null), 6000);
   };
 
@@ -1198,25 +1355,25 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
                 </button>
               </div>
 
-              {/* Card 3: Descarga Directa desde Servidor */}
+              {/* Card 3: Descarga Vía Servidor (Fetch API) */}
               <div className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-cyan-500/50 transition-all flex flex-col justify-between space-y-3">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2 text-cyan-400 font-bold text-sm">
                     <ExternalLink className="w-4 h-4" />
-                    <span>Descarga Directa Servidor</span>
+                    <span>Descarga Vía API Servidor</span>
                   </div>
                   <p className="text-[11px] text-white/60 leading-relaxed">
-                    Enlace HTTP nativo directo desde el backend (/api/admin/reports/csv). Ideal si el navegador o iframe bloquea descargas en segundo plano.
+                    Consulta el endpoint backend autenticado (/api/admin/reports/csv) y descarga el archivo directamente en memoria sin bloqueos de sandbox.
                   </p>
                 </div>
-                <a
-                  href="/api/admin/reports/csv"
-                  download={`Reporte_Votaciones_VCS_${new Date().toISOString().slice(0, 10)}.csv`}
+                <button
+                  type="button"
+                  onClick={handleServerFetchDownload}
                   className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition-colors text-center"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Enlace Servidor HTTP</span>
-                </a>
+                  <span>Descargar Desde Servidor</span>
+                </button>
               </div>
 
               {/* Card 4: Descargar JSON */}
@@ -1230,14 +1387,14 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
                     Estructura técnica completa con metadatos, objetos anidados de cada comentario y sellos de tiempo ISO para auditoría digital.
                   </p>
                 </div>
-                <a
-                  href="/api/admin/reports/json"
-                  download={`Reporte_VCS_Data_${new Date().toISOString().slice(0, 10)}.json`}
+                <button
+                  type="button"
+                  onClick={handleExportJSON}
                   className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-colors text-center border border-white/20"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>Descargar Archivo JSON</span>
-                </a>
+                </button>
               </div>
 
             </div>
@@ -1284,15 +1441,15 @@ export function ExecutiveDashboard({ adminUser, onLogout, onBackToApp }: Executi
               onClick={handleCopyCSV}
               className="px-2.5 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-[11px] font-semibold border border-white/15 transition-colors"
             >
-              Copiar
+              Copiar CSV
             </button>
-            <a
-              href="/api/admin/reports/csv"
-              download={`Reporte_Votaciones_VCS_${new Date().toISOString().slice(0, 10)}.csv`}
+            <button
+              type="button"
+              onClick={handleExportCSV}
               className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold transition-colors"
             >
-              Descarga Directa
-            </a>
+              Reintentar
+            </button>
             <button
               type="button"
               onClick={() => setExportNotice(null)}
