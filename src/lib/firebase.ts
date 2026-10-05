@@ -1,65 +1,41 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { getFirestore, doc, getDocFromServer } from "firebase/firestore";
+import { getAuth, signInAnonymously } from "firebase/auth";
+import firebaseConfig from "../../firebase-applet-config.json";
 
-// Helper to check if firebase config file exists dynamically or fallback
-let dbInstance: ReturnType<typeof getFirestore> | null = null;
+// Initialize Firebase App
+export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-export async function getFirestoreDb() {
-  if (dbInstance) return dbInstance;
+// Initialize Firestore with specific database ID if configured
+export const db = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== "(default)"
+  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+  : getFirestore(app);
 
-  try {
-    // Safely check if firebase-applet-config.json exists using Vite import.meta.glob
-    const configs = import.meta.glob('/firebase-applet-config.json', { eager: true });
-    const configPath = Object.keys(configs)[0];
+export const auth = getAuth(app);
 
-    if (!configPath) {
-      console.warn("Firebase configuration file not found yet or not provisioned.");
-      return null;
-    }
-
-    const configModule: any = configs[configPath];
-    const firebaseConfig = configModule.default || configModule;
-
-    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    
-    if (firebaseConfig.firestoreDatabaseId) {
-      dbInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-    } else {
-      dbInstance = getFirestore(app);
-    }
-    return dbInstance;
-  } catch (err) {
-    console.warn("Error initializing Firestore:", err);
-    return null;
-  }
-}
-
-export interface PactoResponsePayload {
-  contactName: string;
-  companyName: string;
-  contactRole?: string;
-  contactEmail?: string;
-  territory: string;
-  coins: Record<string, number>;
-  synergies?: Record<string, unknown>;
-  createdAt?: unknown;
-}
-
-export async function submitPactoResponse(payload: PactoResponsePayload): Promise<string> {
-  const db = await getFirestoreDb();
-  
-  if (db) {
-    const docRef = await addDoc(collection(db, "pacto_respuestas"), {
-      ...payload,
-      createdAt: serverTimestamp(),
+// Automatically sign in anonymously to ensure every guest/partner has a valid auth session
+let authPromise: Promise<any> | null = null;
+export function ensureAuth() {
+  if (!authPromise) {
+    authPromise = signInAnonymously(auth).catch((err) => {
+      console.warn("Anonymous auth notice (rules allow open read/write):", err?.message);
     });
-    return docRef.id;
-  } else {
-    // Fallback: Store in localStorage for dev preview if firebase is pending
-    const localHistory = JSON.parse(localStorage.getItem("pacto_respuestas") || "[]");
-    const mockId = "local_" + Date.now();
-    localHistory.push({ ...payload, id: mockId, createdAt: new Date().toISOString() });
-    localStorage.setItem("pacto_respuestas", JSON.stringify(localHistory));
-    return mockId;
+  }
+  return authPromise;
+}
+
+// Ensure auth is kicked off on module load
+ensureAuth();
+
+// Test connection to Firestore as required by Firebase skill
+export async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, "test", "connection"));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("the client is offline")) {
+      console.error("Please check your Firebase configuration.");
+    }
   }
 }
+
+testConnection();

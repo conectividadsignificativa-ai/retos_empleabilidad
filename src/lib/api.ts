@@ -1,11 +1,20 @@
 import { CommentItem, FeedbackData, UserProfile, RealtimeReportData, SolutionReportMetric } from "../types";
 import { INITIAL_FEEDBACK_DATA } from "../data/initialFeedback";
 import { SOLUTIONS_DATA } from "../data/solutionsData";
+import { db, ensureAuth } from "./firebase";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  deleteDoc,
+  onSnapshot
+} from "firebase/firestore";
 
 const LOCAL_USER_ID_KEY = "vcs_user_id";
 const LOCAL_PROFILE_KEY = "vcs_user_profile";
 const LOCAL_FEEDBACK_KEY = "vcs_feedback_cache";
-const LOCAL_PENDING_COMMENTS_KEY = "vcs_pending_comments";
 const LOCAL_ADMIN_KEY = "vcs_admin_session";
 const LOCAL_WHITELIST_KEY = "vcs_whitelist_storage";
 
@@ -41,93 +50,159 @@ export function saveStoredUserProfile(profile: UserProfile) {
   }
 }
 
-/**
- * Returns stored feedback or initializes with initial seeded anonymous comments & votes.
- * Guarantees that on static hosts (like GitHub Pages) or after page reload,
- * all 9 proposals have their initial votes and comments available immediately.
- */
 export function getStoredFeedback(): FeedbackData {
   try {
     const raw = localStorage.getItem(LOCAL_FEEDBACK_KEY);
     if (raw) {
       const parsed: FeedbackData = JSON.parse(raw);
       if (parsed && parsed.likes && parsed.comments) {
-        let needsSave = false;
-        const merged: FeedbackData = {
-          likes: { ...parsed.likes },
-          userLikes: { ...parsed.userLikes },
-          comments: { ...parsed.comments }
-        };
-
-        // Ensure all 9 solutions have at least the seeded comments if local array is empty
-        Object.keys(INITIAL_FEEDBACK_DATA.comments).forEach((solId) => {
-          if (!merged.comments[solId] || merged.comments[solId].length === 0) {
-            merged.comments[solId] = INITIAL_FEEDBACK_DATA.comments[solId] || [];
-            needsSave = true;
-          }
-          if (typeof merged.likes[solId] !== "number" || merged.likes[solId] === 0) {
-            merged.likes[solId] = INITIAL_FEEDBACK_DATA.likes[solId] || 1;
-            needsSave = true;
-          }
-        });
-
-        if (needsSave) {
-          localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(merged));
-        }
-        return merged;
+        return parsed;
       }
     }
-  } catch (e) {
-    console.error("Error reading stored feedback:", e);
-  }
-
-  // First visit or fresh storage: initialize with INITIAL_FEEDBACK_DATA
-  try {
-    localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(INITIAL_FEEDBACK_DATA));
   } catch {}
   return INITIAL_FEEDBACK_DATA;
 }
 
-// Fetch feedback data from server with automatic fallback to client-side store
-export async function fetchFeedbackData(userId: string): Promise<FeedbackData> {
-  try {
-    const res = await fetch(`/api/feedback?userId=${encodeURIComponent(userId)}&_t=${Date.now()}`, {
-      cache: "no-store",
-      headers: {
-        Pragma: "no-cache",
-        "Cache-Control": "no-cache"
-      }
-    });
+// Track if initial cloud seeding has run during this session
+let isSeededInFirestore = false;
 
-    if (res.ok) {
-      const contentType = res.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        const data = await res.json();
-        if (data && data.likes) {
-          const stored = getStoredFeedback();
-          const merged: FeedbackData = {
-            likes: { ...stored.likes, ...data.likes },
-            userLikes: { ...stored.userLikes, ...(data.userLikes || {}) },
-            comments: { ...stored.comments, ...(data.comments || {}) }
-          };
-          localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(merged));
-          return merged;
+async function ensureCloudSeeded() {
+  if (isSeededInFirestore) return;
+  try {
+    await ensureAuth();
+    // Check if at least one solution doc exists in Firestore
+    const testRef = doc(db, "solutions_feedback", "pacifico-terremoto");
+    const snap = await getDoc(testRef);
+
+    if (!snap.exists()) {
+      // Seed all 9 solutions into Firestore
+      for (const sol of SOLUTIONS_DATA) {
+        const solId = sol.id;
+        const initialLikes = INITIAL_FEEDBACK_DATA.likes[solId] || 1;
+        const initialVoters = [`seed-${solId}`];
+        const initialComments = INITIAL_FEEDBACK_DATA.comments[solId] || [];
+
+        // Save solution feedback doc
+        await setDoc(doc(db, "solutions_feedback", solId), {
+          solutionId: solId,
+          likesCount: initialLikes,
+          voterIds: initialVoters,
+          updatedAt: new Date().toISOString()
+        });
+
+        // Save initial comments
+        for (const comment of initialComments) {
+          await setDoc(doc(db, "solutions_feedback", solId, "comments", comment.id), {
+            id: comment.id,
+            solutionId: solId,
+            authorName: comment.authorName,
+            authorOrg: comment.authorOrg,
+            authorEmail: comment.authorEmail || "",
+            text: comment.text,
+            createdAt: comment.createdAt
+          });
         }
       }
     }
-  } catch {
-    // Expected on static GitHub Pages hosting
+    isSeededInFirestore = true;
+  } catch (err) {
+    console.warn("Notice checking Firestore seed:", err);
+  }
+}
+
+// Fetch feedback data directly from Cloud Firestore (with cache fallback)
+export async function fetchFeedbackData(userId: string): Promise<FeedbackData> {
+  await ensureCloudSeeded();
+
+  try {
+    const likesCount: Record<string, number> = {};
+    const userLikes: Record<string, boolean> = {};
+    const comments: Record<string, CommentItem[]> = {};
+
+    // Read all solution feedback documents from Firestore
+    const feedbackCol = collection(db, "solutions_feedback");
+    const feedbackSnap = await getDocs(feedbackCol);
+
+    if (!feedbackSnap.empty) {
+      const commentPromises = feedbackSnap.docs.map(async (docSnap) => {
+        const solId = docSnap.id;
+        const data = docSnap.data();
+        const voterIds = Array.isArray(data.voterIds) ? data.voterIds : [];
+
+        likesCount[solId] = typeof data.likesCount === "number" ? data.likesCount : voterIds.length;
+        userLikes[solId] = voterIds.includes(userId);
+
+        // Fetch comments subcollection for this solution
+        const commentsCol = collection(db, "solutions_feedback", solId, "comments");
+        const commentsSnap = await getDocs(commentsCol);
+        const solComments: CommentItem[] = [];
+
+        commentsSnap.forEach((cDoc) => {
+          const cData = cDoc.data();
+          solComments.push({
+            id: cData.id || cDoc.id,
+            solutionId: solId,
+            authorName: cData.authorName || "Anónimo",
+            authorOrg: cData.authorOrg || "Organización Ficticia",
+            authorEmail: cData.authorEmail || "",
+            text: cData.text || "",
+            createdAt: cData.createdAt || new Date().toISOString()
+          });
+        });
+
+        // Sort descending by date
+        solComments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        comments[solId] = solComments;
+      });
+
+      await Promise.all(commentPromises);
+
+      const result: FeedbackData = {
+        likes: likesCount,
+        userLikes,
+        comments
+      };
+
+      localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(result));
+      return result;
+    }
+  } catch (err) {
+    console.warn("Cloud Firestore read error, using local cache:", err);
   }
 
   return getStoredFeedback();
 }
 
-// Toggle like for a solution (persists locally and syncs with backend if reachable)
+// Real-time live listener for multi-user shared interactions
+export function subscribeToFeedback(
+  userId: string,
+  onUpdate: (data: FeedbackData) => void
+): () => void {
+  ensureCloudSeeded().catch(() => {});
+
+  try {
+    const feedbackCol = collection(db, "solutions_feedback");
+    const unsubscribe = onSnapshot(feedbackCol, async () => {
+      // Whenever any document changes, re-fetch and notify
+      const updated = await fetchFeedbackData(userId);
+      onUpdate(updated);
+    }, (err) => {
+      console.warn("Firestore snapshot listener error:", err);
+    });
+
+    return unsubscribe;
+  } catch {
+    return () => {};
+  }
+}
+
+// Toggle like for a solution directly in Firestore
 export async function toggleSolutionLike(
   solutionId: string, 
   userId: string, 
   profile?: UserProfile
 ): Promise<{ likesCount: number; userLiked: boolean }> {
+  // 1. Optimistic local update
   const current = getStoredFeedback();
   const currentlyLiked = Boolean(current.userLikes[solutionId]);
   const currentLikes = current.likes[solutionId] || 0;
@@ -139,29 +214,48 @@ export async function toggleSolutionLike(
   current.likes[solutionId] = newLikesCount;
   localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(current));
 
+  // 2. Cloud Firestore persistence
   try {
-    const res = await fetch(`/api/solutions/${solutionId}/like`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId,
-        userName: profile?.name,
-        userOrg: profile?.organization
-      })
-    });
+    await ensureAuth();
+    const solRef = doc(db, "solutions_feedback", solutionId);
+    const snap = await getDoc(solRef);
 
-    if (res.ok) {
-      const data = await res.json();
-      current.likes[solutionId] = data.likesCount;
-      current.userLikes[solutionId] = data.userLiked;
-      localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(current));
-      return {
-        likesCount: data.likesCount,
-        userLiked: data.userLiked
-      };
+    let voterIds: string[] = [];
+    if (snap.exists()) {
+      voterIds = Array.isArray(snap.data().voterIds) ? [...snap.data().voterIds] : [];
     }
-  } catch {
-    // On GitHub Pages or static host, local update is authoritative
+
+    const index = voterIds.indexOf(userId);
+    let finalLiked = false;
+
+    if (index >= 0) {
+      // Remove like
+      voterIds.splice(index, 1);
+      finalLiked = false;
+    } else {
+      // Add like
+      voterIds.push(userId);
+      finalLiked = true;
+    }
+
+    const finalCount = voterIds.length;
+    await setDoc(solRef, {
+      solutionId,
+      likesCount: finalCount,
+      voterIds,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+
+    current.likes[solutionId] = finalCount;
+    current.userLikes[solutionId] = finalLiked;
+    localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(current));
+
+    return {
+      likesCount: finalCount,
+      userLiked: finalLiked
+    };
+  } catch (err) {
+    console.error("Firestore toggle like error:", err);
   }
 
   return {
@@ -170,14 +264,15 @@ export async function toggleSolutionLike(
   };
 }
 
-// Post comment to a solution (persists locally immediately, syncs to backend if running)
+// Post comment to a solution directly into Cloud Firestore
 export async function postSolutionComment(
   solutionId: string,
   text: string,
   author: { name: string; org: string; email?: string }
 ): Promise<CommentItem> {
+  const commentId = "c-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7);
   const newComment: CommentItem = {
-    id: "c-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7),
+    id: commentId,
     solutionId,
     authorName: author.name.trim() || "Anónimo",
     authorOrg: author.org.trim() || "Organización Ficticia",
@@ -186,7 +281,7 @@ export async function postSolutionComment(
     createdAt: new Date().toISOString()
   };
 
-  // Immediate local persistence
+  // 1. Immediate local persistence
   const current = getStoredFeedback();
   if (!current.comments[solutionId]) {
     current.comments[solutionId] = [];
@@ -194,43 +289,28 @@ export async function postSolutionComment(
   current.comments[solutionId].unshift(newComment);
   localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(current));
 
-  // Network sync attempt
+  // 2. Cloud Firestore persistence
   try {
-    const res = await fetch(`/api/solutions/${solutionId}/comment`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        authorName: newComment.authorName,
-        authorOrg: newComment.authorOrg,
-        authorEmail: newComment.authorEmail,
-        text: newComment.text
-      })
-    });
+    await ensureAuth();
+    // Save to Firestore subcollection
+    const commentRef = doc(db, "solutions_feedback", solutionId, "comments", commentId);
+    await setDoc(commentRef, newComment);
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data.comment) {
-        return data.comment;
-      }
-    }
-  } catch {
-    // Expected on static hosting
+    // Update parent solution doc timestamp
+    const solRef = doc(db, "solutions_feedback", solutionId);
+    await setDoc(solRef, {
+      solutionId,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (err) {
+    console.error("Firestore post comment error:", err);
   }
 
   return newComment;
 }
 
-// Register user in database
 export async function registerUserApi(profile: UserProfile): Promise<void> {
-  try {
-    await fetch("/api/register-user", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(profile)
-    });
-  } catch {
-    // Handled client-side via saveStoredUserProfile
-  }
+  saveStoredUserProfile(profile);
 }
 
 // ==========================================
@@ -290,31 +370,49 @@ export async function verifyWhitelistAuth(
     return { authorized: false, error: "Por favor ingresa tu cuenta de Gmail o correo autorizado." };
   }
 
-  // 1. Try server verification first
-  try {
-    const res = await fetch("/api/auth/verify-whitelist", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: cleanEmail })
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data.authorized && data.user) {
-        saveStoredAdminUser(data.user);
-        return { authorized: true, user: data.user };
-      }
-    } else {
-      const data = await res.json().catch(() => ({}));
-      if (data && data.authorized === false && data.error) {
-        return { authorized: false, error: data.error };
-      }
-    }
-  } catch {
-    // Expected on static GitHub Pages
+  // Check super admin directly
+  if (cleanEmail === "conectividadsignificativa@gmail.com") {
+    const user = {
+      email: cleanEmail,
+      name: "Dirección General VCS",
+      organization: "Ventana de Conectividad Significativa",
+      role: "Super Administrador",
+      token: "vcs_auth_" + Date.now()
+    };
+    saveStoredAdminUser(user);
+    return { authorized: true, user };
   }
 
-  // 2. Resilient check against local whitelist (guarantees access on GitHub Pages)
+  // Check Firestore whitelist
+  try {
+    await ensureAuth();
+    const whitelistCol = collection(db, "whitelist");
+    const snap = await getDocs(whitelistCol);
+    let matchedDoc: any = null;
+
+    snap.forEach((d) => {
+      const data = d.data();
+      if (data.email && data.email.toLowerCase() === cleanEmail) {
+        matchedDoc = data;
+      }
+    });
+
+    if (matchedDoc) {
+      const user = {
+        email: matchedDoc.email,
+        name: matchedDoc.name || "Evaluador Estratégico Aliado",
+        organization: matchedDoc.organization || "Entidad Aliada Autorizada",
+        role: matchedDoc.role || "Evaluador de Reportes",
+        token: "vcs_auth_" + Date.now()
+      };
+      saveStoredAdminUser(user);
+      return { authorized: true, user };
+    }
+  } catch (err) {
+    console.warn("Firestore whitelist check notice:", err);
+  }
+
+  // Check local whitelist
   const fullWhitelist = getLocalWhitelist();
   const matched = fullWhitelist.find((entry) => entry.email.toLowerCase() === cleanEmail);
 
@@ -336,7 +434,6 @@ export async function verifyWhitelistAuth(
   };
 }
 
-// Compute client-side realtime reports from current feedback
 export function computeClientReports(store: FeedbackData): RealtimeReportData {
   const allLikes = store.likes || {};
   const allComments = store.comments || {};
@@ -429,42 +526,26 @@ export function computeClientReports(store: FeedbackData): RealtimeReportData {
 }
 
 export async function fetchRealtimeReports(): Promise<RealtimeReportData> {
-  try {
-    const res = await fetch(`/api/admin/reports?_t=${Date.now()}`, {
-      cache: "no-store",
-      headers: {
-        Pragma: "no-cache",
-        "Cache-Control": "no-cache"
-      }
-    });
-    if (res.ok) {
-      const contentType = res.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        return await res.json();
-      }
-    }
-  } catch {
-    // Expected on static GitHub Pages hosting
-  }
-
-  return computeClientReports(getStoredFeedback());
+  const currentFeedback = await fetchFeedbackData(getOrCreateUserId());
+  return computeClientReports(currentFeedback);
 }
 
 export async function fetchWhitelistApi(): Promise<any[]> {
   try {
-    const res = await fetch("/api/admin/whitelist");
-    if (res.ok) {
-      const data = await res.json();
-      if (data.whitelist) return data.whitelist;
+    await ensureAuth();
+    const whitelistCol = collection(db, "whitelist");
+    const snap = await getDocs(whitelistCol);
+    if (!snap.empty) {
+      const list: any[] = [];
+      snap.forEach((d) => list.push(d.data()));
+      return list;
     }
   } catch {}
   return getLocalWhitelist();
 }
 
 export async function addWhitelistApi(entry: { email: string; name?: string; organization?: string; role?: string }): Promise<any[]> {
-  const current = getLocalWhitelist();
   const cleanEmail = entry.email.trim().toLowerCase();
-  const index = current.findIndex((item) => item.email.toLowerCase() === cleanEmail);
   const newEntry = {
     email: cleanEmail,
     name: entry.name?.trim() || "Aliado Estratégico",
@@ -473,6 +554,14 @@ export async function addWhitelistApi(entry: { email: string; name?: string; org
     addedAt: new Date().toISOString()
   };
 
+  try {
+    await ensureAuth();
+    const docId = cleanEmail.replace(/[^a-zA-Z0-9]/g, "_");
+    await setDoc(doc(db, "whitelist", docId), newEntry);
+  } catch {}
+
+  const current = getLocalWhitelist();
+  const index = current.findIndex((item) => item.email.toLowerCase() === cleanEmail);
   if (index >= 0) {
     current[index] = { ...current[index], ...newEntry };
   } else {
@@ -480,42 +569,26 @@ export async function addWhitelistApi(entry: { email: string; name?: string; org
   }
   saveLocalWhitelist(current);
 
-  try {
-    const res = await fetch("/api/admin/whitelist", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(entry)
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.whitelist) return data.whitelist;
-    }
-  } catch {}
-
-  return current;
+  return fetchWhitelistApi();
 }
 
 export async function removeWhitelistApi(email: string): Promise<any[]> {
-  const current = getLocalWhitelist().filter((item) => item.email.toLowerCase() !== email.toLowerCase());
-  saveLocalWhitelist(current);
-
+  const cleanEmail = email.toLowerCase().trim();
   try {
-    const res = await fetch(`/api/admin/whitelist/${encodeURIComponent(email)}`, {
-      method: "DELETE"
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.whitelist) return data.whitelist;
-    }
+    await ensureAuth();
+    const docId = cleanEmail.replace(/[^a-zA-Z0-9]/g, "_");
+    await deleteDoc(doc(db, "whitelist", docId));
   } catch {}
 
-  return current;
+  const current = getLocalWhitelist().filter((item) => item.email.toLowerCase() !== cleanEmail);
+  saveLocalWhitelist(current);
+
+  return fetchWhitelistApi();
 }
 
 export function clearLocalFeedbackCache() {
   try {
     localStorage.removeItem(LOCAL_FEEDBACK_KEY);
-    localStorage.removeItem(LOCAL_PENDING_COMMENTS_KEY);
   } catch (e) {
     console.warn("Could not clear local feedback cache:", e);
   }
@@ -524,12 +597,26 @@ export function clearLocalFeedbackCache() {
 export async function resetFeedbackDataApi(): Promise<boolean> {
   clearLocalFeedbackCache();
   try {
-    const res = await fetch("/api/admin/reset-data", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" }
-    });
-    return res.ok;
-  } catch {
-    return true;
+    await ensureAuth();
+    // Reset all 9 solutions in Firestore
+    for (const sol of SOLUTIONS_DATA) {
+      const solRef = doc(db, "solutions_feedback", sol.id);
+      await setDoc(solRef, {
+        solutionId: sol.id,
+        likesCount: 0,
+        voterIds: [],
+        updatedAt: new Date().toISOString()
+      });
+
+      // Clear comments in Firestore
+      const commentsCol = collection(db, "solutions_feedback", sol.id, "comments");
+      const cSnap = await getDocs(commentsCol);
+      for (const cDoc of cSnap.docs) {
+        await deleteDoc(cDoc.ref);
+      }
+    }
+  } catch (err) {
+    console.error("Error resetting Firestore data:", err);
   }
+  return true;
 }

@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "SolutionFeedback": {
+      "title": "SolutionFeedback",
+      "description": "Aggregated voting and like counters for a territorial solution proposal",
+      "type": "object",
+      "properties": {
+        "solutionId": {
+          "type": "string",
+          "description": "Unique identifier of the solution proposal"
+        },
+        "likesCount": {
+          "type": "number",
+          "description": "Total number of likes/votes received"
+        },
+        "voterIds": {
+          "type": "array",
+          "description": "List of user/session IDs who voted for this proposal"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        }
+      },
+      "required": ["solutionId", "likesCount", "voterIds"]
+    },
+    "SolutionComment": {
+      "title": "SolutionComment",
+      "description": "Qualitative feedback comment submitted for a solution proposal",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique comment identifier"
+        },
+        "solutionId": {
+          "type": "string",
+          "description": "Target solution identifier"
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Name or alias of the author (e.g. Anónimo 1)"
+        },
+        "authorOrg": {
+          "type": "string",
+          "description": "Organization or entity alias (e.g. Organización Ficticia 1)"
+        },
+        "authorEmail": {
+          "type": "string",
+          "description": "Optional email of author"
+        },
+        "text": {
+          "type": "string",
+          "description": "Qualitative feedback text"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp when comment was created"
+        }
+      },
+      "required": ["id", "solutionId", "authorName", "authorOrg", "text", "createdAt"]
+    },
+    "WhitelistEntry": {
+      "title": "WhitelistEntry",
+      "description": "Authorized stakeholder entry for dashboard access",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Authorized stakeholder email address"
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name or designation"
+        },
+        "organization": {
+          "type": "string",
+          "description": "Organization affiliation"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role in evaluation"
+        },
+        "addedAt": {
+          "type": "string",
+          "description": "ISO timestamp when added to whitelist"
+        }
+      },
+      "required": ["email", "addedAt"]
+    }
+  },
+  "firestore": {
+    "/solutions_feedback/{solutionId}": {
+      "schema": {
+        "$ref": "#/entities/SolutionFeedback"
+      },
+      "description": "Feedback and like state for territorial solution proposals"
+    },
+    "/solutions_feedback/{solutionId}/comments/{commentId}": {
+      "schema": {
+        "$ref": "#/entities/SolutionComment"
+      },
+      "description": "Comments left by stakeholders and participants on proposals"
+    },
+    "/whitelist/{whitelistId}": {
+      "schema": {
+        "$ref": "#/entities/WhitelistEntry"
+      },
+      "description": "Whitelist of emails authorized to access the executive dashboard"
+    }
+  }
+}

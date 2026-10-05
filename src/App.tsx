@@ -7,6 +7,7 @@ import {
   saveStoredUserProfile, 
   getStoredFeedback,
   fetchFeedbackData, 
+  subscribeToFeedback,
   toggleSolutionLike, 
   postSolutionComment, 
   registerUserApi,
@@ -33,29 +34,29 @@ export function App() {
 
   const [feedback, setFeedback] = useState<FeedbackData>(() => getStoredFeedback());
 
-  // Load and continuously sync feedback and comments so all guests see comments in real time
+  // Load and continuously sync feedback and comments with Cloud Firestore in real time
   useEffect(() => {
     let isMounted = true;
 
-    const loadData = () => {
-      fetchFeedbackData(userId).then((data) => {
-        if (isMounted && data) {
-          setFeedback(data);
-        }
-      });
-    };
+    // 1. Initial fetch
+    fetchFeedbackData(userId).then((data) => {
+      if (isMounted && data) {
+        setFeedback(data);
+      }
+    });
 
-    loadData();
-
-    // Auto-poll comments and likes every 6 seconds (or 3 seconds if comment modal is active)
-    const pollIntervalMs = activeCommentSolution ? 3000 : 6000;
-    const interval = setInterval(loadData, pollIntervalMs);
+    // 2. Real-time Cloud Firestore snapshot listener (instantly reflects likes & comments from other partners)
+    const unsubscribe = subscribeToFeedback(userId, (liveData) => {
+      if (isMounted && liveData) {
+        setFeedback(liveData);
+      }
+    });
 
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      unsubscribe();
     };
-  }, [userId, activeCommentSolution]);
+  }, [userId]);
 
   // Scroll to top when page changes
   useEffect(() => {

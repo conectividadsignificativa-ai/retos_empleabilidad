@@ -79,13 +79,13 @@ export const SOLUTIONS_DATA: Solution[] = [
     id: "caribe-1",
     region: "caribe",
     number: 1,
-    title: "Ecosistema de Intermediación Activa (La Palanca)",
-    shortSummary: "Ruta formal de intermediación activa conectada a redes empresariales y plataformas territoriales con enfoque de 'No dejar a nadie atrás'.",
-    corporatePain: "Muchas empresas, especialmente MiPymes, dependen de redes de referidos para contratar, perdiendo acceso a talento resiliente, mientras que los jóvenes sin conexiones sociales no logran visibilidad laboral.",
-    lastMileSolution: "Institucionalizar la conexión a través de una ruta de intermediación activa. Se articula la plataforma con las redes empresariales. Para asegurar que la ruta no se centralice, se integran redes juveniles y anclaje territorial en territorio, garantizando el enfoque de 'No dejar a nadie atrás'.",
-    coInvestment: "La VCS financia la articulación. Aliados aportan su capacidad de convocatoria y plataformas comunitarias e invierten el tiempo directivo de sus afiliados para inmersiones corporativas.",
+    title: "Ecosistema de Intermediación Activa con Comunidades de Talento (La Palanca)",
+    shortSummary: "Institucionalización de la palanca empoderando a comunidades tecnológicas y redes juveniles territoriales como curadores primarios de talento TI.",
+    corporatePain: "Cuando se acaben las plataformas digitales privadas, el puente se cae o reduce. En la realidad las empresas publican y los prestadores tienen la misión (y los recursos) de proponer candidatos; la plataforma debe ser para los candidatos (sus organizaciones, como developer groups, pioneras Dev o redes mapeadas) y que las empresas (ya que les conviene) se vuelvan su apoyo o palanca.",
+    lastMileSolution: "Institucionalizar la \"palanca\" empoderando a comunidades tecnológicas y redes juveniles ya ancladas del territorio como curadores primarios del talento TI. Los nodos juveniles deben ser más de dos en cada territorio, para que compitan y filtren oferta local e inyecten su capital humano en los intermediadores que recogen la demanda empresarial. Las empresas y gremios, lideradas por el clúster de TI de la cámara de comercio del territorio, fortalecen al menos trimestralmente las comunidades y redes juveniles mejorando cada vez más el entendimiento oferta/demanda. Este puente agiliza la selección asegurando jóvenes validados por sus pares y respaldados por el ecosistema.",
+    coInvestment: "La VCS invierte capital semilla para fortalecer operativamente a estas comunidades (fomentando la competencia por calidad entre nodos). A cambio, las empresas y gremios (ej. Cámaras de Comercio) se comprometen a realizar inmersiones trimestrales con estas redes para calibrar la oferta con sus necesidades reales.",
     roi: "Las empresas diversifican su base de talento y acceden a perfiles altamente fidelizados, reduciendo los costos y tiempos de los procesos de selección tradicionales.",
-    tags: ["Intermediación Activa", "Redes Empresariales", "Inclusión Territorial", "No Dejar a Nadie Atrás"]
+    tags: ["Intermediación Activa", "Comunidades de Talento", "Nodos Juveniles", "Inmersiones Trimestrales"]
   },
   {
     id: "caribe-2",
@@ -103,24 +103,24 @@ export const SOLUTIONS_DATA: Solution[] = [
     id: "caribe-3",
     region: "caribe",
     number: 3,
-    title: "Acompañamiento Integral y Retención (Protección de la Inversión)",
-    shortSummary: "Malla de contención socioemocional y acompañamiento enfocado para reducir la deserción temprana en los primeros 90 días de vinculación laboral.",
+    title: "Acompañamiento Integral y Retención Condicionada (Pago por Resultados)",
+    shortSummary: "Malla de contención con apoyos de supervivencia, Zonas Seguras Empresariales y esquema de pago por resultados a más de un año de permanencia.",
     corporatePain: "Alta deserción de perfiles junior durante los primeros 90 días de vinculación por baja tolerancia a la frustración y falta de adaptación a la cultura corporativa.",
-    lastMileSolution: "Consolidar una malla de contención socioemocional. Se integra la experiencia de universidades, sumado al modelo de empleabilidad enfocado, que incluye esquemas probados de acompañamiento y retención con altas tasas de colocación formal.",
-    coInvestment: "El aliado pone a disposición su capacidad técnica y financiera corporativa, aporta diseños académicos. La VCS cubre los costos logísticos de adaptación de los módulos a perfiles tecnológicos.",
-    roi: "Reducción drástica del abandono temprano del puesto de trabajo, protegiendo los recursos que invierte la empresa durante el proceso de inducción (onboarding).",
-    tags: ["Contención Socioemocional", "Retención Laboral (90 días)", "Protección de Inversión", "Cultura Corporativa"]
+    lastMileSolution: "Con los actores y servicios identificados en el territorio es posible consolidar una malla de contención en dos frentes. Primero, asegurar apoyos de supervivencia (estipendios/conectividad) para evitar la autoexclusión. Segundo, integrar metodologías socioemocionales certificadas (aportadas por universidades o centros certificados en calidad) con modelos de empleabilidad de fundaciones corporativas ancla. Esto se complementa con la creación de Zonas Seguras Empresariales: espacios de diálogo guiados donde el talento gestiona sus miedos y brechas de adaptación.",
+    coInvestment: "La VCS mitiga el riesgo inicial cubriendo los apoyos de subsistencia juvenil y el desarrollo de un Sistema de Alerta Temprana de deserción. La academia y fundaciones operan bajo un esquema de Pago por Resultados, cobrando su éxito solo si el joven permanece empleado más de un año. Las empresas co-invierten asignando un Padrino Técnico interno que actúa como guía cultural en la oficina, apoyado por la contención profesional de las fundaciones aliadas.",
+    roi: "Las empresas reciben perfiles tecnológicos blindados emocionalmente, disminuyendo drásticamente la pérdida de capital, tiempo y curva de aprendizaje que generan los abandonos tempranos (fuga de talento).",
+    tags: ["Contención Socioemocional", "Zonas Seguras Empresariales", "Pago por Resultados", "Padrino Técnico"]
   },
   {
     id: "caribe-4",
     region: "caribe",
     number: 4,
     title: "Semilleros Corporativos Inmersivos (Pacto por el Empleo)",
-    shortSummary: "Pacto por el empleo con clusterización formativa y convenios previos, permitiendo a los jóvenes formarse dentro de las instalaciones corporativas desde el día uno.",
+    shortSummary: "Pacto por el Empleo con semilleros inmersivos y alianzas previas con empresas para estudiar dentro del entorno corporativo real desde el día uno.",
     corporatePain: "Las empresas manifiestan que la academia forma perfiles desconectados de sus necesidades reales (desfase sectorial). A su vez, los jóvenes sufren de autoexclusión o sienten que no es para ellos porque desconocen los entornos corporativos por fuera de sus realidades barriales.",
-    lastMileSolution: "Consolidar un Pacto por el Empleo mediante la creación de semilleros a corto plazo. Para lograrlo, se implementa la clusterización de la formación (Formación por familias de ocupaciones en sectores ya clusterizados), agrupando el talento según las vocaciones del territorio. La innovación radica en exigir convenios con la empresa previos a la ruta, garantizando la inclusión de las corporaciones desde la etapa de formación. Esto permite habilitar espacios físicos para que los jóvenes entren, estudien y se acerquen a las empresas desde el día uno, conociendo el entorno corporativo real.",
-    coInvestment: "La VCS financia la orquestación de los clústeres formativos. Las universidades y centros de formación aportan el cuerpo docente. Las empresas co-invierten cediendo sus instalaciones, infraestructura tecnológica y tiempo de sus especialistas para que el semillero esté directamente relacionado con el entorno de trabajo.",
-    roi: "Las empresas moldean el talento a su medida desde el primer día de clases (no al final del proceso) y los jóvenes rompen la barrera del síndrome del impostor al desmitificar el espacio de trabajo, garantizando una transición fluida y sin traumas hacia la contratación formal.",
-    tags: ["Pacto por el Empleo", "Clústeres Formativos", "Semilleros Inmersivos", "Superación Síndrome Impostor"]
+    lastMileSolution: "Consolidar un \"Pacto por el Empleo\" basado en la creación de Semilleros Inmersivos a corto plazo. Se implementa una formación clusterizada (agrupando el talento en familias de ocupaciones según las vocaciones del territorio). La disrupción radica en suscribir alianzas con las empresas previos a la ruta. Esto permite habilitar espacios para que los jóvenes estudien y se acerquen a la empresa desde el día uno, conociendo el entorno corporativo real antes de finalizar su formación o entrenamiento (nuevas habilidades o escalamiento de las mismas).",
+    coInvestment: "La VCS financia la orquestación inicial de los clústeres formativos. Las universidades y centros de formación técnica aportan el rigor metodológico y el cuerpo docente. Las empresas co-invierten cediendo sus instalaciones, infraestructura tecnológica y horas de sus especialistas, logrando que el semillero se alimente del entorno de trabajo.",
+    roi: "Las empresas moldean su fuerza laboral a la medida exacta de su sector productivo desde el primer día del entrenamiento o formación, mientras los jóvenes rompen la barrera del síndrome del impostor, garantizando una transición fluida y sin traumas hacia la contratación formal.",
+    tags: ["Pacto por el Empleo", "Semilleros Inmersivos", "Formación Clusterizada", "Transición Sin Traumas"]
   }
 ];

@@ -87,10 +87,10 @@ const SOLUTIONS_METADATA = [
   { id: "pacifico-2", region: "pacifico" as const, number: 3, title: "Pasaporte de Habilidades (Modelo de Formadores de Vanguardia)", tags: ["Formadores de Vanguardia", "Sandboxes Locales", "Certificación"] },
   { id: "pacifico-3", region: "pacifico" as const, number: 4, title: "Formación Dual Digital Híbrida (El Estándar Operativo)", tags: ["Formación Dual", "Estipendio", "Acompañamiento Psicosocial"] },
   { id: "pacifico-4", region: "pacifico" as const, number: 5, title: "Laboratorios Juveniles de Innovación Abierta (Fábricas de Soluciones)", tags: ["Proyectos Capstone", "Fábrica de Soluciones", "Assessment Center", "Innovación Abierta"] },
-  { id: "caribe-1", region: "caribe" as const, number: 1, title: "Ecosistema de Intermediación Activa (La Palanca)", tags: ["Intermediación Activa", "Redes Empresariales", "Inclusión Territorial", "No Dejar a Nadie Atrás"] },
+  { id: "caribe-1", region: "caribe" as const, number: 1, title: "Ecosistema de Intermediación Activa con Comunidades de Talento (La Palanca)", tags: ["Intermediación Activa", "Comunidades de Talento", "Nodos Juveniles", "Inmersiones Trimestrales"] },
   { id: "caribe-2", region: "caribe" as const, number: 2, title: "Sandbox Bilingüe y Pago por Resultados", tags: ["Torneos de Código a Ciegas", "Bilingüismo", "Pago por Resultados", "Validación Práctica"] },
-  { id: "caribe-3", region: "caribe" as const, number: 3, title: "Acompañamiento Integral y Retención (Protección de la Inversión)", tags: ["Contención Socioemocional", "Retención Laboral (90 días)", "Protección de Inversión", "Cultura Corporativa"] },
-  { id: "caribe-4", region: "caribe" as const, number: 4, title: "Semilleros Corporativos Inmersivos (Pacto por el Empleo)", tags: ["Pacto por el Empleo", "Clústeres Formativos", "Semilleros Inmersivos", "Superación Síndrome Impostor"] }
+  { id: "caribe-3", region: "caribe" as const, number: 3, title: "Acompañamiento Integral y Retención Condicionada (Pago por Resultados)", tags: ["Contención Socioemocional", "Zonas Seguras Empresariales", "Pago por Resultados", "Padrino Técnico"] },
+  { id: "caribe-4", region: "caribe" as const, number: 4, title: "Semilleros Corporativos Inmersivos (Pacto por el Empleo)", tags: ["Pacto por el Empleo", "Semilleros Inmersivos", "Formación Clusterizada", "Transición Sin Traumas"] }
 ];
 
 interface CommentRecord {

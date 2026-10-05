@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidSolutionFeedback(data) {
+      return data.keys().hasAll(['solutionId', 'likesCount', 'voterIds'])
+        && data.keys().hasOnly(['solutionId', 'likesCount', 'voterIds', 'updatedAt'])
+        && data.solutionId is string
+        && isValidId(data.solutionId)
+        && data.likesCount is number
+        && data.likesCount >= 0
+        && data.voterIds is list
+        && data.voterIds.size() <= 5000;
+    }
+
+    function isValidSolutionComment(data, solutionId) {
+      return data.keys().hasAll(['id', 'solutionId', 'authorName', 'authorOrg', 'text', 'createdAt'])
+        && data.keys().hasOnly(['id', 'solutionId', 'authorName', 'authorOrg', 'text', 'createdAt', 'authorEmail'])
+        && data.id is string
+        && data.solutionId is string
+        && data.solutionId == solutionId
+        && data.authorName is string
+        && data.authorName.size() > 0
+        && data.authorName.size() <= 120
+        && data.authorOrg is string
+        && data.authorOrg.size() <= 120
+        && data.text is string
+        && data.text.size() > 0
+        && data.text.size() <= 4000
+        && data.createdAt is string;
+    }
+
+    function isValidWhitelistEntry(data) {
+      return data.keys().hasAll(['email', 'addedAt'])
+        && data.keys().hasOnly(['email', 'name', 'organization', 'role', 'addedAt'])
+        && data.email is string
+        && data.email.size() > 3
+        && data.email.size() <= 150
+        && data.addedAt is string;
+    }
+
+    // Solutions feedback (likes counters and voter lists)
+    match /solutions_feedback/{solutionId} {
+      allow read: if isValidId(solutionId);
+      allow create, update: if isValidId(solutionId) && isValidSolutionFeedback(request.resource.data);
+      allow delete: if false;
+
+      // Solution comments subcollection
+      match /comments/{commentId} {
+        allow read: if isValidId(solutionId);
+        allow create: if isValidId(solutionId) && isValidId(commentId) && isValidSolutionComment(request.resource.data, solutionId);
+        allow update, delete: if false;
+      }
+    }
+
+    // Whitelist entries
+    match /whitelist/{whitelistId} {
+      allow read: if true;
+      allow create, update: if isValidWhitelistEntry(request.resource.data);
+      allow delete: if true;
+    }
+  }
+}
