@@ -90,9 +90,9 @@ async function ensureCloudSeeded() {
           updatedAt: new Date().toISOString()
         });
 
-        // Save initial comments
+        // Save initial comments in both all_comments and subcollection
         for (const comment of initialComments) {
-          await setDoc(doc(db, "solutions_feedback", solId, "comments", comment.id), {
+          const commentPayload = {
             id: comment.id,
             solutionId: solId,
             authorName: comment.authorName,
@@ -100,7 +100,9 @@ async function ensureCloudSeeded() {
             authorEmail: comment.authorEmail || "",
             text: comment.text,
             createdAt: comment.createdAt
-          });
+          };
+          await setDoc(doc(db, "all_comments", comment.id), commentPayload);
+          await setDoc(doc(db, "solutions_feedback", solId, "comments", comment.id), commentPayload);
         }
       }
     }
@@ -110,7 +112,7 @@ async function ensureCloudSeeded() {
   }
 }
 
-// Fetch feedback data directly from Cloud Firestore (with cache fallback)
+// Fetch feedback data directly from Cloud Firestore (single fast queries)
 export async function fetchFeedbackData(userId: string): Promise<FeedbackData> {
   await ensureCloudSeeded();
 
@@ -119,27 +121,38 @@ export async function fetchFeedbackData(userId: string): Promise<FeedbackData> {
     const userLikes: Record<string, boolean> = {};
     const comments: Record<string, CommentItem[]> = {};
 
-    // Read all solution feedback documents from Firestore
+    // Initialize all 9 solutions with defaults
+    SOLUTIONS_DATA.forEach((s) => {
+      likesCount[s.id] = 0;
+      userLikes[s.id] = false;
+      comments[s.id] = [];
+    });
+
+    // 1. Fetch solution feedback documents
     const feedbackCol = collection(db, "solutions_feedback");
     const feedbackSnap = await getDocs(feedbackCol);
 
     if (!feedbackSnap.empty) {
-      const commentPromises = feedbackSnap.docs.map(async (docSnap) => {
+      feedbackSnap.forEach((docSnap) => {
         const solId = docSnap.id;
         const data = docSnap.data();
         const voterIds = Array.isArray(data.voterIds) ? data.voterIds : [];
-
         likesCount[solId] = typeof data.likesCount === "number" ? data.likesCount : voterIds.length;
         userLikes[solId] = voterIds.includes(userId);
+      });
+    }
 
-        // Fetch comments subcollection for this solution
-        const commentsCol = collection(db, "solutions_feedback", solId, "comments");
-        const commentsSnap = await getDocs(commentsCol);
-        const solComments: CommentItem[] = [];
+    // 2. Fetch all comments from unified all_comments collection in 1 single fast query
+    const allCommentsCol = collection(db, "all_comments");
+    const commentsSnap = await getDocs(allCommentsCol);
 
-        commentsSnap.forEach((cDoc) => {
-          const cData = cDoc.data();
-          solComments.push({
+    if (!commentsSnap.empty) {
+      commentsSnap.forEach((cDoc) => {
+        const cData = cDoc.data();
+        const solId = cData.solutionId;
+        if (solId) {
+          if (!comments[solId]) comments[solId] = [];
+          comments[solId].push({
             id: cData.id || cDoc.id,
             solutionId: solId,
             authorName: cData.authorName || "Anónimo",
@@ -148,24 +161,40 @@ export async function fetchFeedbackData(userId: string): Promise<FeedbackData> {
             text: cData.text || "",
             createdAt: cData.createdAt || new Date().toISOString()
           });
-        });
-
-        // Sort descending by date
-        solComments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        comments[solId] = solComments;
+        }
       });
-
-      await Promise.all(commentPromises);
-
-      const result: FeedbackData = {
-        likes: likesCount,
-        userLikes,
-        comments
-      };
-
-      localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(result));
-      return result;
+    } else {
+      // Fallback: check subcollections if all_comments was empty
+      for (const sol of SOLUTIONS_DATA) {
+        const subSnap = await getDocs(collection(db, "solutions_feedback", sol.id, "comments"));
+        subSnap.forEach((cDoc) => {
+          const cData = cDoc.data();
+          comments[sol.id].push({
+            id: cData.id || cDoc.id,
+            solutionId: sol.id,
+            authorName: cData.authorName || "Anónimo",
+            authorOrg: cData.authorOrg || "Organización Ficticia",
+            authorEmail: cData.authorEmail || "",
+            text: cData.text || "",
+            createdAt: cData.createdAt || new Date().toISOString()
+          });
+        });
+      }
     }
+
+    // Sort comments descending by date
+    Object.keys(comments).forEach((solId) => {
+      comments[solId].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    });
+
+    const result: FeedbackData = {
+      likes: likesCount,
+      userLikes,
+      comments
+    };
+
+    localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(result));
+    return result;
   } catch (err) {
     console.warn("Cloud Firestore read error, using local cache:", err);
   }
@@ -173,26 +202,43 @@ export async function fetchFeedbackData(userId: string): Promise<FeedbackData> {
   return getStoredFeedback();
 }
 
-// Real-time live listener for multi-user shared interactions
+// Real-time live listener for multi-user shared interactions across all browsers
 export function subscribeToFeedback(
   userId: string,
   onUpdate: (data: FeedbackData) => void
 ): () => void {
   ensureCloudSeeded().catch(() => {});
 
-  try {
-    const feedbackCol = collection(db, "solutions_feedback");
-    const unsubscribe = onSnapshot(feedbackCol, async () => {
-      // Whenever any document changes, re-fetch and notify
-      const updated = await fetchFeedbackData(userId);
-      onUpdate(updated);
-    }, (err) => {
-      console.warn("Firestore snapshot listener error:", err);
-    });
+  let isUnsubscribed = false;
 
-    return unsubscribe;
+  const triggerUpdate = async () => {
+    if (isUnsubscribed) return;
+    try {
+      const updated = await fetchFeedbackData(userId);
+      if (!isUnsubscribed) onUpdate(updated);
+    } catch (e) {
+      console.warn("Error updating from snapshot:", e);
+    }
+  };
+
+  try {
+    // 1. Listen to likes and solution stats changes
+    const unsubFeedback = onSnapshot(collection(db, "solutions_feedback"), () => {
+      triggerUpdate();
+    }, (err) => console.warn("Feedback snapshot error:", err));
+
+    // 2. Listen to all new comments in real time
+    const unsubComments = onSnapshot(collection(db, "all_comments"), () => {
+      triggerUpdate();
+    }, (err) => console.warn("Comments snapshot error:", err));
+
+    return () => {
+      isUnsubscribed = true;
+      unsubFeedback();
+      unsubComments();
+    };
   } catch {
-    return () => {};
+    return () => { isUnsubscribed = true; };
   }
 }
 
@@ -289,14 +335,17 @@ export async function postSolutionComment(
   current.comments[solutionId].unshift(newComment);
   localStorage.setItem(LOCAL_FEEDBACK_KEY, JSON.stringify(current));
 
-  // 2. Cloud Firestore persistence
+  // 2. Cloud Firestore persistence (both in all_comments and in subcollection)
   try {
     await ensureAuth();
-    // Save to Firestore subcollection
-    const commentRef = doc(db, "solutions_feedback", solutionId, "comments", commentId);
-    await setDoc(commentRef, newComment);
 
-    // Update parent solution doc timestamp
+    // Write to unified all_comments collection (triggers global snapshot listener instantly)
+    await setDoc(doc(db, "all_comments", commentId), newComment);
+
+    // Also write to solution subcollection for hierarchical storage
+    await setDoc(doc(db, "solutions_feedback", solutionId, "comments", commentId), newComment);
+
+    // Update parent doc
     const solRef = doc(db, "solutions_feedback", solutionId);
     await setDoc(solRef, {
       solutionId,
@@ -449,10 +498,13 @@ export function computeClientReports(store: FeedbackData): RealtimeReportData {
   });
 
   let totalComments = 0;
+  const allCommentsFlatList: CommentItem[] = [];
+
   Object.keys(allComments).forEach((solId) => {
     const commentsList = allComments[solId] || [];
     totalComments += commentsList.length;
     commentsList.forEach((c) => {
+      allCommentsFlatList.push(c);
       if (c.authorOrg && c.authorOrg.trim()) {
         uniqueOrgsSet.add(c.authorOrg.trim());
       }
@@ -598,7 +650,7 @@ export async function resetFeedbackDataApi(): Promise<boolean> {
   clearLocalFeedbackCache();
   try {
     await ensureAuth();
-    // Reset all 9 solutions in Firestore
+    // 1. Reset all 9 solutions in Firestore
     for (const sol of SOLUTIONS_DATA) {
       const solRef = doc(db, "solutions_feedback", sol.id);
       await setDoc(solRef, {
@@ -608,12 +660,18 @@ export async function resetFeedbackDataApi(): Promise<boolean> {
         updatedAt: new Date().toISOString()
       });
 
-      // Clear comments in Firestore
+      // Clear comments in subcollection
       const commentsCol = collection(db, "solutions_feedback", sol.id, "comments");
       const cSnap = await getDocs(commentsCol);
       for (const cDoc of cSnap.docs) {
         await deleteDoc(cDoc.ref);
       }
+    }
+
+    // 2. Clear all_comments collection
+    const allC = await getDocs(collection(db, "all_comments"));
+    for (const cDoc of allC.docs) {
+      await deleteDoc(cDoc.ref);
     }
   } catch (err) {
     console.error("Error resetting Firestore data:", err);

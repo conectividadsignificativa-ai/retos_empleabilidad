@@ -28,7 +28,7 @@ import {
   FileText
 } from "lucide-react";
 import { RealtimeReportData, SolutionReportMetric, AdminAuthUser, FeedbackData } from "../../types";
-import { fetchRealtimeReports, saveStoredAdminUser, resetFeedbackDataApi } from "../../lib/api";
+import { fetchRealtimeReports, saveStoredAdminUser, resetFeedbackDataApi, computeClientReports } from "../../lib/api";
 import { SOLUTIONS_DATA } from "../../data/solutionsData";
 import { ProposalDetailModal } from "./ProposalDetailModal";
 import { WhitelistManagerModal } from "./WhitelistManagerModal";
@@ -187,14 +187,14 @@ export function ExecutiveDashboard({ adminUser, feedback, onLogout, onBackToApp 
       if (data && data.metrics && data.metrics.length > 0) {
         setReportData(data);
       } else if (feedback) {
-        setReportData(generateDefaultReportData(feedback));
+        setReportData(computeClientReports(feedback));
       }
       setLastRefreshedAt(new Date());
       setSecondsAgo(0);
     } catch (err) {
-      console.warn("Could not fetch reports from server, using local dataset fallback:", err);
+      console.warn("Could not fetch reports, using current feedback fallback:", err);
       if (feedback) {
-        setReportData(generateDefaultReportData(feedback));
+        setReportData(computeClientReports(feedback));
       }
     } finally {
       setLoading(false);
@@ -204,16 +204,12 @@ export function ExecutiveDashboard({ adminUser, feedback, onLogout, onBackToApp 
     }
   };
 
-  // Sync if feedback prop changes
+  // Sync whenever feedback prop changes from real-time Firebase listener
   useEffect(() => {
     if (feedback) {
-      setReportData((prev) => {
-        // If prev came from server with real data, keep it; otherwise merge with feedback
-        if (prev && prev.summary && (prev.summary.totalVotes > 0 || prev.summary.totalComments > 0)) {
-          return prev;
-        }
-        return generateDefaultReportData(feedback);
-      });
+      setReportData(computeClientReports(feedback));
+      setLastRefreshedAt(new Date());
+      setSecondsAgo(0);
     }
   }, [feedback]);
 

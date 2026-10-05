@@ -102,6 +102,12 @@
       },
       "description": "Comments left by stakeholders and participants on proposals"
     },
+    "/all_comments/{commentId}": {
+      "schema": {
+        "$ref": "#/entities/SolutionComment"
+      },
+      "description": "Global unified collection of comments for instant cross-user synchronization"
+    },
     "/whitelist/{whitelistId}": {
       "schema": {
         "$ref": "#/entities/WhitelistEntry"

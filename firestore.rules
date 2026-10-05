@@ -7,9 +7,7 @@ service cloud.firestore {
     }
 
     function isValidSolutionFeedback(data) {
-      return data.keys().hasAll(['solutionId', 'likesCount', 'voterIds'])
-        && data.keys().hasOnly(['solutionId', 'likesCount', 'voterIds', 'updatedAt'])
-        && data.solutionId is string
+      return data.solutionId is string
         && isValidId(data.solutionId)
         && data.likesCount is number
         && data.likesCount >= 0
@@ -18,15 +16,14 @@ service cloud.firestore {
     }
 
     function isValidSolutionComment(data, solutionId) {
-      return data.keys().hasAll(['id', 'solutionId', 'authorName', 'authorOrg', 'text', 'createdAt'])
-        && data.keys().hasOnly(['id', 'solutionId', 'authorName', 'authorOrg', 'text', 'createdAt', 'authorEmail'])
-        && data.id is string
+      return data.id is string
         && data.solutionId is string
         && data.solutionId == solutionId
         && data.authorName is string
         && data.authorName.size() > 0
         && data.authorName.size() <= 120
         && data.authorOrg is string
+        && data.authorOrg.size() > 0
         && data.authorOrg.size() <= 120
         && data.text is string
         && data.text.size() > 0
@@ -45,16 +42,20 @@ service cloud.firestore {
 
     // Solutions feedback (likes counters and voter lists)
     match /solutions_feedback/{solutionId} {
-      allow read: if isValidId(solutionId);
-      allow create, update: if isValidId(solutionId) && isValidSolutionFeedback(request.resource.data);
-      allow delete: if false;
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(solutionId);
 
       // Solution comments subcollection
       match /comments/{commentId} {
-        allow read: if isValidId(solutionId);
-        allow create: if isValidId(solutionId) && isValidId(commentId) && isValidSolutionComment(request.resource.data, solutionId);
-        allow update, delete: if false;
+        allow get, list: if true;
+        allow create, update, delete: if isValidId(solutionId) && isValidId(commentId);
       }
+    }
+
+    // Top-level unified comments collection for instant global reactivity and single-query performance
+    match /all_comments/{commentId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(commentId);
     }
 
     // Whitelist entries
